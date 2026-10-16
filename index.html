@@ -344,6 +344,15 @@ button { font: inherit; color: inherit; }
 @keyframes rise { from { opacity: .001; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 .draw { stroke-dasharray: var(--len, 600); stroke-dashoffset: var(--len, 600); animation: draw 1.2s var(--ease) forwards; }
 @keyframes draw { to { stroke-dashoffset: 0; } }
+.lfig-wrap { margin: 4px 0 6px; }
+.lfig { background: #0e1c1b; border-radius: 10px; }
+.lfig .lf-in { opacity: 0; animation: rise .7s var(--ease) forwards; }
+.lfig text.lf-in { transform-box: fill-box; }
+.lfig .lf-deal { opacity: 0; animation: deal .8s var(--ease) forwards; transform-box: view-box; }
+@keyframes deal { from { opacity: 0; transform: translateY(-30px) rotate(-6deg); } to { opacity: 1; transform: none; } }
+.lfig .lf-bar { transform: scaleY(0); animation: barup 1.1s var(--ease) forwards; transform-box: view-box; }
+@keyframes barup { to { transform: scaleY(1); } }
+.lfig .lf-type { animation: rise 1s var(--ease) both; }
 
 @media (max-width: 900px) {
   .sky, .cardgrid, .alch-hero, .under, .learn { grid-template-columns: minmax(0, 1fr); }
@@ -3223,6 +3232,603 @@ function viewXCab() {
 })();
 
 /* =================== CURRICULUM ENGINE =================== */
+/* =================== LEARN FIGURES: a library of animated drawings =================== */
+const FG = { gold: "#cba44b", gold2: "#e1b93f", dim: "#8b7238", ink: "#ece0c5", mute: "#91a29b", line: "#2e4b46", bg: "#0e1c1b", teal: "#6fa1b0", red: "#c4553c", green: "#5e8f6f", violet: "#7a4bb3", white: "#f2ece0" };
+let FGN = 0;
+const fsv = (body, vb, cls) => `<svg viewBox="${vb || "0 0 400 260"}" class="lfig${cls ? " " + cls : ""}" role="img" aria-hidden="true">${body}</svg>`;
+const ftx = (x, y, t, o) => `<text x="${x}" y="${y}" text-anchor="${(o && o.a) || "middle"}" dominant-baseline="central" font-family="${(o && o.f) || "EB Garamond, serif"}" font-size="${(o && o.s) || 12}" fill="${(o && o.c) || FG.ink}"${o && o.it ? ' font-style="italic"' : ""}${o && o.d !== undefined ? ` class="lf-in" style="animation-delay:${o.d}s"` : ""}>${esc(String(t))}</text>`;
+const fanim = (attr, vals, dur, extra) => `<animate attributeName="${attr}" values="${vals}" dur="${dur}s" repeatCount="indefinite"${extra || ""}/>`;
+const fdraw = (d, len, delay, st) => `<path d="${d}" fill="none" stroke="${(st && st.c) || FG.gold}" stroke-width="${(st && st.w) || 1.6}" stroke-linecap="round" stroke-linejoin="round" class="draw" style="--len:${len};animation-delay:${delay || 0}s"/>`;
+const pol = (cx, cy, r, deg) => [cx + r * Math.cos((deg - 90) * Math.PI / 180), cy + r * Math.sin((deg - 90) * Math.PI / 180)];
+const SIGN_G = ["♈", "♉", "♊", "♋", "♌", "♍", "♎", "♏", "♐", "♑", "♒", "♓"], ELC = ["#d46c45", "#ad9d60", "#bcc7b2", "#6fa1b0"];
+const FIGK = {
+  // a timeline of dated events, drawn left to right with a travelling marker
+  timeline({ ev }) {
+    const n = ev.length, x0 = 62, x1 = 338, step = (x1 - x0) / Math.max(1, n - 1);
+    let s = `<line x1="${x0}" y1="130" x2="${x1}" y2="130" stroke="${FG.dim}" stroke-width="1.5" class="draw" style="--len:400"/>`;
+    ev.forEach(([y, l], i) => { const x = n === 1 ? 200 : x0 + i * step, up = i % 2 === 0, d = (.3 + i * .35).toFixed(2);
+      s += `<g class="lf-in" style="animation-delay:${d}s"><circle cx="${x}" cy="130" r="6" fill="${FG.bg}" stroke="${FG.gold2}" stroke-width="2"/><line x1="${x}" y1="${up ? 122 : 138}" x2="${x}" y2="${up ? 92 : 168}" stroke="${FG.line}"/>
+        <text x="${x}" y="${up ? 80 : 182}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="${FG.gold}">${y}</text>${wrapT(l, x, up ? 62 : 200, up ? -1 : 1, n > 3 ? 13 : 16)}</g>`; });
+    s += `<circle r="4" fill="${FG.gold2}">${`<animateMotion dur="${(n * .9 + 2).toFixed(1)}s" repeatCount="indefinite" path="M${x0} 130 H${x1}"/>`}</circle>`;
+    return fsv(s);
+  },
+  // the zodiac wheel; modes: signs, houses, axes, decans, aspect, elements, sect, lots
+  wheel({ mode, hi, a, labels }) {
+    const c = 130, R = 112, r = 84; let s = "";
+    for (let i = 0; i < 12; i++) { const a0 = i * 30, a1 = a0 + 30, [x0, y0] = pol(c, c, R, a0), [x1, y1] = pol(c, c, R, a1), [x2, y2] = pol(c, c, r, a1), [x3, y3] = pol(c, c, r, a0), on = hi && hi.includes(i);
+      s += `<path d="M${x0} ${y0} A${R} ${R} 0 0 1 ${x1} ${y1} L${x2} ${y2} A${r} ${r} 0 0 0 ${x3} ${y3}Z" fill="${ELC[i % 4]}" fill-opacity="${on ? .55 : .12}" stroke="${FG.line}">${on ? fanim("fill-opacity", ".25;.7;.25", 3) : ""}</path>`;
+      const [gx, gy] = pol(c, c, (R + r) / 2, a0 + 15); s += `<text x="${gx}" y="${gy}" text-anchor="middle" dominant-baseline="central" ${GF} font-size="14" fill="${ELC[i % 4]}">${SIGN_G[i]}</text>`; }
+    s += `<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${FG.gold}" stroke-width=".8"/>`;
+    if (mode === "houses") for (let i = 0; i < 12; i++) { const [x, y] = pol(c, c, r, 270 - i * 30 - 30), [hx, hy] = pol(c, c, r - 18, 270 - i * 30 - 45); s += `<line x1="${c}" y1="${c}" x2="${x}" y2="${y}" stroke="${i % 3 === 0 ? FG.gold2 : FG.line}" stroke-width="${i % 3 === 0 ? 1.6 : .8}" class="draw" style="--len:90;animation-delay:${i * .12}s"/><text x="${hx}" y="${hy}" text-anchor="middle" dominant-baseline="central" font-family="IBM Plex Mono" font-size="9" fill="${FG.mute}">${i + 1}</text>`; }
+    if (mode === "axes") for (let i = 0; i < 6; i++) { const [x1, y1] = pol(c, c, r, i * 30 + 15), [x2, y2] = pol(c, c, r, i * 30 + 195); s += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${FG.gold}" stroke-width="1.2" class="draw" style="--len:170;animation-delay:${i * .4}s"/>`; }
+    if (mode === "decans") for (let i = 0; i < 36; i++) { const [x1, y1] = pol(c, c, r, i * 10), [x2, y2] = pol(c, c, r - (i % 3 === 0 ? 14 : 8), i * 10); s += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${FG.gold}" stroke-width="${i % 3 === 0 ? 1.4 : .7}" class="lf-in" style="animation-delay:${i * .04}s"/>`; }
+    if (mode === "aspect") { const A_ = a || 120, [x1, y1] = pol(c, c, r - 10, 30), [x2, y2] = pol(c, c, r - 10, 30 + A_);
+      s += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${A_ === 90 || A_ === 180 ? FG.red : FG.teal}" stroke-width="2" class="draw" style="--len:200"/><circle cx="${x1}" cy="${y1}" r="7" fill="${FG.gold2}"/><circle cx="${x2}" cy="${y2}" r="7" fill="${FG.gold2}">${fanim("r", "6;8;6", 2)}</circle>`; }
+    if (mode === "sect") { s += `<rect x="${c - R}" y="${c}" width="${2 * R}" height="${R}" fill="${FG.bg}" opacity=".55"/><line x1="${c - R - 6}" y1="${c}" x2="${c + R + 6}" y2="${c}" stroke="${FG.gold}" stroke-width="1.5"/><circle r="10" fill="${FG.gold2}"><animateMotion dur="8s" repeatCount="indefinite" path="M${c - 98} ${c} A98 98 0 1 1 ${c + 98} ${c} A98 98 0 1 1 ${c - 98} ${c}"/></circle>`; }
+    if (mode === "lots") { const [sx, sy] = pol(c, c, 70, 40), [mx, my] = pol(c, c, 70, 130), [ax, ay] = pol(c, c, 70, 270), [fx, fy] = pol(c, c, 70, 360); s += `<circle cx="${sx}" cy="${sy}" r="7" fill="${FG.gold2}"/><circle cx="${mx}" cy="${my}" r="6" fill="${FG.white}"/><path d="M${sx} ${sy} A70 70 0 0 1 ${mx} ${my}" fill="none" stroke="${FG.teal}" stroke-width="2" class="draw" style="--len:120"/><text x="${ax - 14}" y="${ay}" font-family="IBM Plex Mono" font-size="9" fill="${FG.gold}">AC</text><path d="M${ax} ${ay} A70 70 0 0 1 ${fx} ${fy}" fill="none" stroke="${FG.teal}" stroke-width="2" stroke-dasharray="3 4" class="draw" style="--len:120;animation-delay:1.2s"/><text x="${fx}" y="${fy - 12}" text-anchor="middle" ${GF} font-size="15" fill="${FG.gold2}" class="lf-in" style="animation-delay:2.2s">⊗</text>`; }
+    if (mode === "orb") { const [fx, fy] = pol(c, c, r - 12, 30), [b0x, b0y] = pol(c, c, r - 12, 112), [b1x, b1y] = pol(c, c, r - 12, 128);
+      s += `<path d="M${b0x} ${b0y} A${r - 12} ${r - 12} 0 0 1 ${b1x} ${b1y}" fill="none" stroke="${FG.teal}" stroke-opacity=".45" stroke-width="16"/><line x1="${c}" y1="${c}" x2="${pol(c, c, r, 120)[0]}" y2="${pol(c, c, r, 120)[1]}" stroke="${FG.teal}" stroke-dasharray="3 3"/><circle cx="${fx}" cy="${fy}" r="7" fill="${FG.gold2}"/><g><animateTransform attributeName="transform" type="rotate" values="60 ${c} ${c};150 ${c} ${c};60 ${c} ${c}" dur="9s" repeatCount="indefinite"/><circle cx="${c}" cy="${c - r + 12}" r="6" fill="${FG.white}"/></g>`; }
+    if (mode === "trigon") { const P3 = [0, 242.7, 125.4, 8.1, 250.8, 133.5].map(d => pol(c, c, r - 8, d + 15));
+      s += fdraw(`M${P3[0][0]} ${P3[0][1]} L${P3[1][0]} ${P3[1][1]} L${P3[2][0]} ${P3[2][1]} Z`, 450, .2, { c: FG.gold2, w: 1.8 }) + fdraw(`M${P3[3][0]} ${P3[3][1]} L${P3[4][0]} ${P3[4][1]} L${P3[5][0]} ${P3[5][1]} Z`, 450, 1.6, { c: FG.teal, w: 1.2 });
+      P3.forEach(([x, y], i) => s += `<circle cx="${x}" cy="${y}" r="5" fill="${i < 3 ? FG.gold2 : FG.teal}" class="lf-in" style="animation-delay:${(.3 + i * .5).toFixed(1)}s"/>`); }
+    s += `<circle cx="${c}" cy="${c}" r="4" fill="${FG.gold}"/>`;
+    const side = labels ? labels.map((l, i) => `<g class="lf-in" style="animation-delay:${(.4 + i * .4).toFixed(1)}s">${wrapT(l, 330, 50 + i * 42, 1, 22, 11.5)}</g>`).join("") : "";
+    return fsv(`<g transform="translate(${labels ? 6 : 70},0)">${s}</g>${side}`);
+  },
+  // planets in orbit; retrograde loop seen from Earth
+  orbit({ mode }) {
+    let s = `<circle cx="130" cy="130" r="12" fill="${FG.gold2}"/>`;
+    if (mode === "retro") {
+      s += `<circle cx="130" cy="130" r="50" fill="none" stroke="${FG.line}"/><circle cx="130" cy="130" r="95" fill="none" stroke="${FG.line}"/>
+        <circle r="6" fill="${FG.teal}"><animateMotion dur="6s" repeatCount="indefinite" path="M180 130 A50 50 0 1 1 80 130 A50 50 0 1 1 180 130"/></circle>
+        <circle r="7" fill="${FG.red}"><animateMotion dur="14s" repeatCount="indefinite" path="M225 130 A95 95 0 1 1 35 130 A95 95 0 1 1 225 130"/></circle>
+        <path d="M262 160 C300 60 330 60 318 120 C306 175 340 170 380 80" fill="none" stroke="${FG.red}" stroke-width="2" class="draw" style="--len:330"/>${ftx(320, 210, "the path we see from Earth", { s: 11, c: FG.mute, it: 1 })}`;
+    } else if (mode === "speed") {
+      [["☽", 30, 3], ["☿", 48, 5], ["♀", 64, 8], ["♂", 82, 14], ["♃", 100, 26], ["♄", 118, 44]].forEach(([gl, r, d], i) => s += `<circle cx="130" cy="130" r="${r}" fill="none" stroke="${FG.line}"/><g><animateTransform attributeName="transform" type="rotate" from="0 130 130" to="360 130 130" dur="${d}s" repeatCount="indefinite"/><text x="${130 + r}" y="130" text-anchor="middle" dominant-baseline="central" ${GF} font-size="13" fill="${FG.ink}">${gl}</text></g>`);
+      s += ftx(320, 120, "the fastest are personal,", { s: 12, c: FG.mute, it: 1 }) + ftx(320, 140, "the slowest generational", { s: 12, c: FG.mute, it: 1 });
+    } else {
+      s = `<circle cx="130" cy="140" r="40" fill="#1f4b5a" stroke="${FG.teal}"/><g><animateTransform attributeName="transform" type="rotate" values="-23 130 140;23 130 140;-23 130 140" dur="7s" repeatCount="indefinite"/><line x1="130" y1="60" x2="130" y2="220" stroke="${FG.gold2}" stroke-width="2"/></g><ellipse cx="130" cy="62" rx="34" ry="8" fill="none" stroke="${FG.gold}" stroke-dasharray="3 4"/>${ftx(300, 110, "the axis circles once", { s: 12, c: FG.mute, it: 1 })}${ftx(300, 130, "every 25,800 years", { s: 12, c: FG.mute, it: 1 })}`;
+    }
+    return fsv(s);
+  },
+  // the Tree of Life, with spheres lighting in sequence; mode: pillars, trinity, flash, body
+  tree({ hi, mode, labels }) {
+    const P = { K: [100, 22], Ch: [160, 58], B: [40, 58], D: [100, 90], Ce: [160, 124], G: [40, 124], Ti: [100, 156], N: [160, 190], H: [40, 190], Y: [100, 216], M: [100, 246] };
+    const PATHS2 = [["K", "Ch"], ["K", "B"], ["K", "Ti"], ["Ch", "B"], ["Ch", "Ti"], ["Ch", "Ce"], ["B", "Ti"], ["B", "G"], ["Ce", "G"], ["Ce", "Ti"], ["Ce", "N"], ["G", "Ti"], ["G", "H"], ["Ti", "N"], ["Ti", "Y"], ["Ti", "H"], ["N", "H"], ["N", "Y"], ["N", "M"], ["H", "Y"], ["H", "M"], ["Y", "M"]];
+    let s = PATHS2.map(([a, b]) => `<line x1="${P[a][0]}" y1="${P[a][1]}" x2="${P[b][0]}" y2="${P[b][1]}" stroke="${FG.dim}" stroke-width="2.5" stroke-opacity=".5"/>`).join("");
+    if (mode === "pillars") s += [40, 100, 160].map((x, i) => `<rect x="${x - 16}" y="10" width="32" height="250" rx="16" fill="${[FG.red, FG.gold, FG.teal][i]}" fill-opacity=".12" class="lf-in" style="animation-delay:${i * .5}s"/>`).join("");
+    if (mode === "flash") s += fdraw("M100 22 L160 58 L40 58 L160 124 L40 124 L100 156 L160 190 L40 190 L100 216 L100 246", 820, .2, { c: FG.gold2, w: 2.5 });
+    const order = ["K", "Ch", "B", "D", "Ce", "G", "Ti", "N", "H", "Y", "M"];
+    order.forEach((k, i) => { const on = hi && hi.includes(k), [x, y] = P[k];
+      s += `<circle cx="${x}" cy="${y}" r="${k === "D" ? 9 : 12}" fill="${on ? FG.gold2 : FG.bg}" stroke="${FG.gold}" stroke-width="1.4"${k === "D" ? ' stroke-dasharray="2 3"' : ""}>${on ? `<animate attributeName="fill-opacity" values=".35;1;.35" dur="3s" begin="${(hi.indexOf(k) * .5).toFixed(1)}s" repeatCount="indefinite"/>` : ""}</circle><text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central" font-family="Times New Roman" font-size="9" fill="${on ? FG.bg : FG.ink}">${SEPH[k].heb}</text>`; });
+    if (mode === "trinity") s += `<path d="M100 22 L160 58 L40 58 Z" fill="${FG.gold2}" fill-opacity=".12" stroke="${FG.gold2}" class="draw" style="--len:400"/>`;
+    const side = (labels || []).map((l, i) => `<g class="lf-in" style="animation-delay:${(.4 + i * .45).toFixed(2)}s">${wrapT(l, 300, 40 + i * (200 / Math.max(1, (labels || []).length)), 1, 26, 11.5)}</g>`).join("");
+    return fsv(`<g transform="translate(40,0)">${s}</g>${side}`);
+  },
+  // large Hebrew letters appearing one by one, with captions
+  letters({ l, sub, rtl }) {
+    const arr = rtl ? [...l].reverse() : [...l]; if (rtl && sub) sub = [...sub].reverse();
+    const n = arr.length, w = 360 / n;
+    return fsv(arr.map((ch, i) => `<g class="lf-in" style="animation-delay:${((rtl ? n - 1 - i : i) * .5).toFixed(1)}s"><text x="${20 + w * (i + .5)}" y="110" text-anchor="middle" dominant-baseline="central" font-family="Times New Roman" font-size="${Math.min(90, w * .9)}" fill="${FG.gold2}">${ch}</text>${sub && sub[i] ? wrapT(sub[i], 20 + w * (i + .5), 190, 1, Math.max(10, Math.floor(w / 6)), 11) : ""}</g>`).join(""));
+  },
+  // a cycle of stages around a circle, with a travelling highlight
+  cycle({ items, center }) {
+    const n = items.length, c = [200, 130], R = 95; let s = `<circle cx="200" cy="130" r="${R}" fill="none" stroke="${FG.line}" stroke-width="1.5"/>`;
+    items.forEach(([l, col], i) => { const [x, y] = pol(c[0], c[1], R, i * 360 / n); s += `<g class="lf-in" style="animation-delay:${(i * .25).toFixed(2)}s"><circle cx="${x}" cy="${y}" r="11" fill="${col || FG.gold}" stroke="${FG.bg}" stroke-width="2"/>${wrapT(l, x + (x > 205 ? 18 : x < 195 ? -18 : 0), y + (Math.abs(x - 200) < 10 ? (y < 130 ? -20 : 20) : 0), 0, 16, 11, x > 205 ? "start" : x < 195 ? "end" : "middle")}</g>`; });
+    s += `<circle r="5" fill="${FG.white}"><animateMotion dur="${n * 1.4}s" repeatCount="indefinite" path="M200 35 A95 95 0 1 1 199.9 35"/></circle>`;
+    if (center) s += wrapT(center, 200, 130, 0, 16, 13, "middle", FG.gold2);
+    return fsv(s);
+  },
+  // rungs of a ladder lighting from the bottom, a climbing point
+  ladder({ items }) {
+    const n = items.length, top = 22, bot = 238, h = (bot - top) / Math.max(1, n - 1);
+    let s = `<line x1="150" y1="14" x2="150" y2="246" stroke="${FG.dim}" stroke-width="2"/><line x1="200" y1="14" x2="200" y2="246" stroke="${FG.dim}" stroke-width="2"/>`;
+    items.forEach((l, i) => { const y = bot - i * h; s += `<g class="lf-in" style="animation-delay:${(i * .35).toFixed(2)}s"><line x1="150" y1="${y}" x2="200" y2="${y}" stroke="${FG.gold}" stroke-width="2.5"/>${ftx(212, y, l, { a: "start", s: n > 10 ? 10 : 12 })}</g>`; });
+    s += `<circle cx="175" r="6" fill="${FG.gold2}"><animate attributeName="cy" values="${bot};${top};${bot}" dur="${n * .9 + 3}s" repeatCount="indefinite"/></circle>`;
+    return fsv(s);
+  },
+  // concentric rings (heavens, palaces, mansions), a light travelling inward
+  rings({ items, inward }) {
+    const n = items.length, R = 120; let s = "";
+    items.forEach((l, i) => { const r = R - i * (R - 12) / n; s += `<circle cx="130" cy="130" r="${r}" fill="${i % 2 ? FG.bg : "#132624"}" stroke="${FG.gold}" stroke-opacity=".6" class="lf-in" style="animation-delay:${(i * .2).toFixed(2)}s"/>`; });
+    s += `<circle cx="130" cy="130" r="9" fill="${FG.gold2}">${fanim("r", "7;11;7", 2.5)}</circle>`;
+    s += `<circle cx="130" cy="130" r="${R}" fill="none" stroke="${FG.white}" stroke-width="2"><animate attributeName="r" values="${R};8" dur="5s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;0" dur="5s" repeatCount="indefinite"/></circle>`;
+    const shown = items.length > 10 ? items.filter((x, i) => i % Math.ceil(items.length / 8) === 0 || i === items.length - 1) : items;
+    s += shown.map((l, i) => `<g class="lf-in" style="animation-delay:${(.4 + i * .25).toFixed(2)}s">${ftx(270, 24 + i * (220 / Math.max(1, shown.length - 1)), l, { a: "start", s: 11.5 })}</g>`).join("");
+    return fsv(s);
+  },
+  // alchemical vessels
+  vessel({ kind, label }) {
+    let s = "";
+    if (kind === "alembic") s = `<path d="M80 200 Q80 140 120 130 Q160 140 160 200 Z" fill="#1b3532" stroke="${FG.gold}"/><path d="M120 130 V100 Q120 80 150 82 L280 120" fill="none" stroke="${FG.gold}" stroke-width="2"/><path d="M280 120 L300 170 Q300 200 330 200 Q360 200 360 170 L340 150" fill="none" stroke="${FG.gold}"/><path d="M85 195 Q120 180 155 195 L155 200 L85 200Z" fill="${FG.teal}" opacity=".7"/>${[0, 1, 2].map(i => `<circle r="3" fill="${FG.ink}" opacity=".7"><animateMotion dur="4s" begin="${i * 1.3}s" repeatCount="indefinite" path="M120 180 V95 Q125 82 150 84 L278 120 L298 168"/><animate attributeName="opacity" values="0;.8;.8;0" dur="4s" begin="${i * 1.3}s" repeatCount="indefinite"/></circle>`).join("")}<circle cx="330" cy="195" r="4" fill="${FG.teal}"/>${flameS(120, 222)}`;
+    else if (kind === "pelican") s = `<path d="M170 210 Q130 210 130 170 Q130 110 200 100 Q270 110 270 170 Q270 210 230 210 Z" fill="#1b3532" stroke="${FG.gold}"/><path d="M200 100 V60 Q200 40 160 50 Q120 60 135 150" fill="none" stroke="${FG.gold}" stroke-width="2"/><path d="M200 60 Q200 40 240 50 Q280 60 265 150" fill="none" stroke="${FG.gold}" stroke-width="2"/>${[0, 1].map(i => `<circle r="3.5" fill="${FG.teal}"><animateMotion dur="5s" begin="${i * 2.5}s" repeatCount="indefinite" path="M${i ? 240 : 160} 180 Q200 130 200 62 Q${i ? 240 : 160} 45 ${i ? 265 : 135} 150 Z"/></circle>`).join("")}${flameS(200, 232)}`;
+    else if (kind === "egg") s = `<ellipse cx="200" cy="140" rx="60" ry="85" fill="#132624" stroke="${FG.gold}" stroke-width="2"/><rect x="190" y="48" width="20" height="10" fill="${FG.gold}"/><circle cx="200" cy="160" r="30" fill="${FG.red}"><animate attributeName="fill" values="#151515;#e9eef0;#e1b93f;#a8261d;#151515" dur="10s" repeatCount="indefinite"/></circle>${flameS(200, 240)}`;
+    else if (kind === "athanor") s = `<path d="M150 230 V90 Q200 50 250 90 V230 Z" fill="#2a2018" stroke="${FG.gold}"/><rect x="185" y="190" width="30" height="30" fill="#e07b2a" opacity=".8">${fanim("opacity", ".5;.95;.5", 1.4)}</rect><ellipse cx="200" cy="120" rx="18" ry="24" fill="#1b3532" stroke="${FG.gold}"/>${[0, 1, 2].map(i => `<circle cx="${190 + i * 10}" r="2" fill="${FG.ink}"><animate attributeName="cy" values="85;20" dur="3s" begin="${i}s" repeatCount="indefinite"/><animate attributeName="opacity" values=".6;0" dur="3s" begin="${i}s" repeatCount="indefinite"/></circle>`).join("")}`;
+    else s = `<rect x="140" y="140" width="120" height="70" rx="6" fill="#1b3532" stroke="${FG.gold}"/><path d="M150 160 Q200 150 250 160 L250 205 L150 205 Z" fill="${FG.teal}" opacity=".6">${fanim("d", "M150 160 Q200 150 250 160 L250 205 L150 205 Z;M150 160 Q200 170 250 160 L250 205 L150 205 Z;M150 160 Q200 150 250 160 L250 205 L150 205 Z", 3)}</path><path d="M180 140 Q180 90 200 80 Q220 90 220 140" fill="#132624" stroke="${FG.gold}"/>${flameS(200, 232)}`;
+    return fsv(s + (label ? ftx(200, 250, label, { s: 11, c: FG.mute, it: 1 }) : ""));
+  },
+  // a journey drawn between places (lat/lon on a plain grid)
+  route({ pts, loop: lp }) {
+    const la = pts.map(p => p[1]), lo = pts.map(p => p[2]), pla = Math.max(.6, (Math.max(...la) - Math.min(...la)) * .18), plo = Math.max(.8, (Math.max(...lo) - Math.min(...lo)) * .12), minLa = Math.min(...la) - pla, maxLa = Math.max(...la) + pla, minLo = Math.min(...lo) - plo, maxLo = Math.max(...lo) + plo;
+    const X = v => 30 + (v - minLo) / (maxLo - minLo) * 340, Y = v => 240 - (v - minLa) / (maxLa - minLa) * 220;
+    let s = ""; for (let i = 0; i <= 6; i++) s += `<line x1="${30 + i * 340 / 6}" y1="18" x2="${30 + i * 340 / 6}" y2="242" stroke="${FG.line}" stroke-opacity=".5"/><line x1="30" y1="${18 + i * 224 / 6}" x2="370" y2="${18 + i * 224 / 6}" stroke="${FG.line}" stroke-opacity=".5"/>`;
+    const d = pts.map((p, i) => `${i ? "L" : "M"}${X(p[2]).toFixed(1)} ${Y(p[1]).toFixed(1)}`).join(" ") + (lp ? " Z" : "");
+    s += fdraw(d, 1600, .2, { c: FG.gold2, w: 2 });
+    pts.forEach((p, i) => { const x = X(p[2]), y = Y(p[1]); s += `<g class="lf-in" style="animation-delay:${(.3 + i * .4).toFixed(1)}s"><circle cx="${x}" cy="${y}" r="5" fill="${FG.bg}" stroke="${FG.gold2}" stroke-width="2"/>${ftx(x, y + (i % 2 ? 16 : -13), p[0], { s: 11 })}</g>`; });
+    s += `<circle r="4" fill="${FG.white}"><animateMotion dur="${pts.length * 1.5}s" repeatCount="indefinite" path="${d}"/></circle>`;
+    return fsv(s);
+  },
+  // a grid of letters with cells lighting in sequence
+  grid({ rows, hi, cap }) {
+    const R = rows.length, C = rows[0].length, cw = Math.min(28, 340 / C), ch = Math.min(28, 210 / R), x0 = 200 - cw * C / 2, y0 = 125 - ch * R / 2;
+    let s = ""; rows.forEach((row, r) => [...row].forEach((L, c0) => { const c = /[֐-׿]/.test(row) ? C - 1 - c0 : c0, k = (hi || []).findIndex(([a, b]) => a === r && b === c0);
+      s += `<rect x="${x0 + c * cw}" y="${y0 + r * ch}" width="${cw - 1}" height="${ch - 1}" fill="${k >= 0 ? FG.gold2 : "#132624"}" stroke="${FG.line}">${k >= 0 ? `<animate attributeName="fill-opacity" values=".15;1;1;.15" dur="${(hi.length * .5 + 2).toFixed(1)}s" begin="${(k * .5).toFixed(1)}s" repeatCount="indefinite"/>` : ""}</rect><text x="${x0 + c * cw + cw / 2}" y="${y0 + r * ch + ch / 2}" text-anchor="middle" dominant-baseline="central" font-family="${/[֐-׿]/.test(L) ? "Times New Roman" : "IBM Plex Mono, monospace"}" font-size="${Math.min(cw, ch) * .55}" fill="${k >= 0 ? FG.bg : FG.ink}">${L}</text>`; }));
+    return fsv(s + (cap ? ftx(200, 250, cap, { s: 11, c: FG.mute, it: 1 }) : ""));
+  },
+  // the 22 letters on a circle, chords drawn between pairs (the 231 gates)
+  gates() {
+    const L = [..."אבגדהוזחטיכלמנסעפצקרשת"]; let s = "";
+    L.forEach((ch, i) => { const [x, y] = pol(200, 130, 108, i * 360 / 22); s += `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central" font-family="Times New Roman" font-size="15" fill="${FG.gold2}">${ch}</text>`; });
+    let k = 0; for (let i = 0; i < 22; i++) for (let j = i + 1; j < 22; j += 3) { const [x1, y1] = pol(200, 130, 94, i * 360 / 22), [x2, y2] = pol(200, 130, 94, j * 360 / 22); s += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${FG.gold}" stroke-opacity=".28" stroke-width=".7" class="draw" style="--len:200;animation-delay:${(k++ * .03).toFixed(2)}s"/>`; }
+    return fsv(s);
+  },
+  // the square of qualities and elements, with the transmutation wheel
+  square() {
+    const E = [["Fire", 200, 30, ELC[0]], ["Air", 330, 130, ELC[2]], ["Water", 200, 230, ELC[3]], ["Earth", 70, 130, ELC[1]]], Q = [["hot", 270, 75], ["wet", 270, 185], ["cold", 130, 185], ["dry", 130, 75]];
+    let s = `<path d="M200 30 L330 130 L200 230 L70 130 Z" fill="none" stroke="${FG.gold}" class="draw" style="--len:700"/>`;
+    E.forEach(([n, x, y, c], i) => s += `<g class="lf-in" style="animation-delay:${(.3 + i * .3).toFixed(1)}s"><circle cx="${x}" cy="${y}" r="20" fill="${FG.bg}" stroke="${c}" stroke-width="2"/>${symbolSVG(n, x, y + 1, 9, c)}${ftx(x, y + (y > 200 ? 30 : y < 50 ? -30 : 32), n, { s: 12 })}</g>`);
+    Q.forEach(([q, x, y], i) => s += ftx(x, y, q, { it: 1, c: FG.mute, s: 12, d: 1.6 + i * .2 }));
+    s += `<circle r="6" fill="${FG.white}"><animateMotion dur="8s" repeatCount="indefinite" path="M200 30 L330 130 L200 230 L70 130 Z"/></circle>`;
+    return fsv(`<g transform="translate(28,18) scale(.86)">${s}</g>`);
+  },
+  // three things in a triangle; four in a cross
+  triad({ items, center, glyphs }) {
+    const V = [[200, 56], [306, 196], [94, 196]]; let s = fdraw("M200 56 L306 196 L94 196 Z", 600, .1);
+    items.forEach((l, i) => { const [x, y] = V[i]; s += `<g class="lf-in" style="animation-delay:${(.4 + i * .4).toFixed(1)}s"><circle cx="${x}" cy="${y}" r="16" fill="${FG.bg}" stroke="${FG.gold2}" stroke-width="2"/>${glyphs ? (/^(Fire|Water|Air|Earth|Sulphur|Salt)$/.test(glyphs[i]) ? symbolSVG(glyphs[i], x, y, 8, FG.gold2) : ftx(x, y, glyphs[i], { s: 15, c: FG.gold2, f: "Noto Sans Symbols 2, serif" })) : ""}${wrapT(l, x, y + (i ? 28 : -26), i ? 1 : -1, 20, 12)}</g>`; });
+    if (center) s += `<g class="lf-in" style="animation-delay:1.8s">${wrapT(center, 200, 150, 0, 16, 12.5, "middle", FG.gold2)}</g>`;
+    return fsv(s);
+  },
+  quad({ items, center, cols }) {
+    const V = [[200, 34], [330, 130], [200, 226], [70, 130]]; let s = `<line x1="200" y1="54" x2="200" y2="206" stroke="${FG.dim}" class="draw" style="--len:160"/><line x1="92" y1="130" x2="308" y2="130" stroke="${FG.dim}" class="draw" style="--len:220"/><circle cx="200" cy="130" r="60" fill="none" stroke="${FG.line}"/>`;
+    items.forEach((l, i) => { const [x, y] = V[i]; s += `<g class="lf-in" style="animation-delay:${(.3 + i * .35).toFixed(1)}s"><circle cx="${x}" cy="${y}" r="9" fill="${(cols && cols[i]) || FG.gold2}">${fanim("r", "7;10;7", 3, ` begin="${i * .75}s"`)}</circle>${wrapT(l, x + (i === 1 ? 16 : i === 3 ? -16 : 0), y + (i === 0 ? -22 : i === 2 ? 22 : 0), 0, 16, 12, i === 1 ? "start" : i === 3 ? "end" : "middle")}</g>`; });
+    if (center) s += wrapT(center, 200, 130, 0, 12, 12, "middle", FG.gold2);
+    return fsv(s);
+  },
+  // real cards dealt onto the table
+  cards({ ids, cap, rev }) {
+    const n = ids.length, w = Math.min(70, 360 / n - 8), h = w * 1.7, x0 = 200 - (n * (w + 8) - 8) / 2, cy = h / 2 + 22;
+    return fsv(ids.map((id, i) => `<g class="lf-deal" style="animation-delay:${(i * .25).toFixed(2)}s;transform-origin:${x0 + i * (w + 8) + w / 2}px ${cy}px"><image href="${img(id)}" x="${x0 + i * (w + 8)}" y="${cy - h / 2}" width="${w}" height="${h}" preserveAspectRatio="xMidYMid slice"${rev && rev.includes(i) ? ` transform="rotate(180 ${x0 + i * (w + 8) + w / 2} ${cy})"` : ""}/><rect x="${x0 + i * (w + 8)}" y="${cy - h / 2}" width="${w}" height="${h}" rx="4" fill="none" stroke="${FG.gold}"/></g>`).join("") + (cap ? ftx(200, h + 36, cap, { s: 11, c: FG.mute, it: 1 }) : ""), `0 0 400 ${Math.round(h + 44)}`);
+  },
+  // a spread layout, positions appearing in order
+  spread({ pos }) {
+    return fsv(pos.map(([x, y, rot, l], i) => `<g class="lf-in" style="animation-delay:${(i * .3).toFixed(1)}s"><rect x="${x - 17}" y="${y - 27}" width="34" height="54" rx="4" fill="#1b3532" stroke="${FG.gold}" transform="rotate(${rot || 0} ${x} ${y})"/>${ftx(x, y, i + 1, { f: "IBM Plex Mono", s: 12, c: FG.gold2 })}${l ? ftx(x, y + 38, l, { s: 9.5, c: FG.mute }) : ""}</g>`).join(""));
+  },
+  // a manuscript page: title, date and a key sentence written out
+  page({ t, by, q, nq }) {
+    const id = "pg" + (++FGN);
+    return fsv(`<defs><linearGradient id="${id}" x1="0" x2="1"><stop offset="0" stop-color="#2a2418"/><stop offset="1" stop-color="#1c1a12"/></linearGradient></defs><rect x="70" y="14" width="260" height="232" rx="6" fill="url(#${id})" stroke="${FG.dim}"/><rect x="82" y="26" width="236" height="208" rx="3" fill="none" stroke="${FG.gold}" stroke-opacity=".4"/>
+      ${ftx(200, 52, t, { s: 16, c: FG.gold2, f: "IM Fell English SC, serif" })}${by ? ftx(200, 72, by, { s: 11, c: FG.mute, it: 1 }) : ""}<line x1="140" y1="86" x2="260" y2="86" stroke="${FG.gold}" stroke-opacity=".6" class="draw" style="--len:120"/>
+      <g class="lf-type">${wrapT(nq ? q : "“" + q + "”", 200, 150, 0, 34, 13, "middle", FG.ink, true)}</g>`);
+  },
+  // a breathing circle with a word, for prayer and meditation units
+  breath({ w, sub }) {
+    return fsv(`<circle cx="200" cy="120" r="40" fill="${FG.gold2}" fill-opacity=".12" stroke="${FG.gold}">${fanim("r", "34;80;34", 8)}${fanim("fill-opacity", ".06;.22;.06", 8)}</circle><circle cx="200" cy="120" r="90" fill="none" stroke="${FG.line}" stroke-dasharray="2 5"/>
+      ${wrapT(w, 200, 120, 0, 18, 16, "middle", FG.ink)}${ftx(200, 236, sub || "breathe in as the circle grows, out as it shrinks", { s: 11, c: FG.mute, it: 1 })}`);
+  },
+  // a flame
+  flame({ cap }) { return fsv(`<ellipse cx="200" cy="225" rx="60" ry="8" fill="#000" opacity=".3"/>${flameS(200, 200, 2.6)}${cap ? ftx(200, 248, cap, { s: 11, c: FG.mute, it: 1 }) : ""}`); },
+  // two circles meeting and merging
+  union({ a, b, m }) {
+    return fsv(`<circle cy="120" r="50" fill="${FG.red}" fill-opacity=".35" stroke="${FG.red}">${fanim("cx", "110;175;175;110", 8)}</circle><circle cy="120" r="50" fill="${FG.white}" fill-opacity=".25" stroke="${FG.white}">${fanim("cx", "290;225;225;290", 8)}</circle>
+      ${ftx(80, 200, a, { s: 12 })}${ftx(320, 200, b, { s: 12 })}<g>${fanim("opacity", "0;0;1;0", 8)}${`<text x="200" y="120" text-anchor="middle" dominant-baseline="central" font-family="EB Garamond, serif" font-size="15" fill="${FG.gold2}" stroke="${FG.bg}" stroke-width="4" paint-order="stroke">${esc(m)}</text>`}</g>`);
+  },
+  // animated bars (for evidence and statistics)
+  bars({ items, cap, u }) { u = u === undefined ? "%" : u;
+    const n = items.length, w = 260 / n, mx = Math.max(...items.map(x => x[1]));
+    return fsv(items.map(([l, v, col], i) => { const h = v / mx * 160, x = 70 + i * w; return `<rect x="${x + 8}" y="${210 - h}" width="${w - 16}" height="${h}" fill="${col || FG.gold}" class="lf-bar" style="animation-delay:${i * .3}s;transform-origin:0 210px"/>${ftx(x + w / 2, 225, l, { s: 11 })}${ftx(x + w / 2, 200 - h, v + u, { s: 11, f: "IBM Plex Mono", c: FG.gold2 })}`; }).join("") + `<line x1="60" y1="210" x2="340" y2="210" stroke="${FG.dim}"/>` + (cap ? ftx(200, 248, cap, { s: 11, c: FG.mute, it: 1 }) : ""));
+  },
+  // a dial of hours (canonical or planetary)
+  dial({ items }) {
+    let s = `<circle cx="200" cy="130" r="105" fill="#132624" stroke="${FG.gold}"/><path d="M95 130 A105 105 0 0 0 305 130 Z" fill="${FG.gold2}" fill-opacity=".07"/>`;
+    items.forEach(([l, deg], i) => { const [x, y] = pol(200, 130, 85, deg), [x2, y2] = pol(200, 130, 105, deg), [x3, y3] = pol(200, 130, 98, deg); s += `<line x1="${x3}" y1="${y3}" x2="${x2}" y2="${y2}" stroke="${FG.gold}"/><g class="lf-in" style="animation-delay:${(i * .2).toFixed(1)}s">${ftx(x, y, l, { s: 10.5 })}</g>`; });
+    s += `<line x1="200" y1="130" x2="200" y2="48" stroke="${FG.gold2}" stroke-width="2.5"><animateTransform attributeName="transform" type="rotate" from="0 200 130" to="360 200 130" dur="16s" repeatCount="indefinite"/></line><circle cx="200" cy="130" r="5" fill="${FG.gold2}"/>`;
+    return fsv(s);
+  },
+  // 7 × 7 grid filling day by day (the Omer)
+  omer() {
+    const S = ["Hesed", "Gevurah", "Tiferet", "Netzah", "Hod", "Yesod", "Malkhut"]; let s = "";
+    for (let w = 0; w < 7; w++) { s += ftx(52, 30 + w * 30, S[w], { s: 10, a: "end", c: FG.mute }); for (let d = 0; d < 7; d++) { const n = w * 7 + d; s += `<rect x="${62 + d * 30}" y="${18 + w * 30}" width="26" height="24" rx="3" fill="${FG.gold2}" fill-opacity=".08" stroke="${FG.line}"><animate attributeName="fill-opacity" values=".08;.08;.85;.85" keyTimes="0;${(n / 52).toFixed(3)};${((n + 1) / 52).toFixed(3)};1" dur="16s" repeatCount="indefinite"/></rect>${ftx(75 + d * 30, 30 + w * 30, n + 1, { s: 9, f: "IBM Plex Mono", c: FG.ink })}`; } }
+    return fsv(s + ftx(330, 120, "7 weeks", { s: 12, c: FG.mute, it: 1 }) + ftx(330, 140, "× 7 days", { s: 12, c: FG.mute, it: 1 }));
+  },
+  // gematria: letters falling into a sum
+  gem({ parts, sum, eq }) {
+    const X = i => 200 + (parts.length - 1) * 30 - i * 60;
+    let s = parts.map(([L, v], i) => `<g class="lf-in" style="animation-delay:${(i * .4).toFixed(1)}s">${ftx(X(i), 80, L, { s: 44, c: FG.gold2, f: "Times New Roman" })}${ftx(X(i), 130, v, { s: 14, f: "IBM Plex Mono" })}</g>`).join("");
+    return fsv(s + `<line x1="${X(parts.length - 1) - 30}" y1="152" x2="${X(0) + 30}" y2="152" stroke="${FG.gold}" class="draw" style="--len:300;animation-delay:${parts.length * .4}s"/>` + ftx(200, 182, `= ${sum}`, { s: 22, c: FG.gold2, f: "IBM Plex Mono", d: parts.length * .4 + .4 }) + (eq ? ftx(200, 222, eq, { s: 12, it: 1, c: FG.mute, d: parts.length * .4 + .8 }) : ""));
+  },
+  // the sefirot on the body (Patach Eliyahu)
+  body() {
+    const B = [["Keter", 200, 22], ["Hokhmah: brain", 200, 50], ["Binah: heart", 200, 122], ["Hesed: right arm", 248, 100], ["Gevurah: left arm", 152, 100], ["Tiferet: body", 200, 146], ["Netzah", 222, 190], ["Hod", 178, 190], ["Yesod: covenant", 200, 168], ["Malkhut: mouth", 200, 66]];
+    let s = `<circle cx="200" cy="52" r="20" fill="none" stroke="${FG.dim}"/><path d="M200 72 V170 M200 90 L250 140 M200 90 L150 140 M200 170 L225 240 M200 170 L175 240" fill="none" stroke="${FG.dim}" stroke-width="2" class="draw" style="--len:300"/>`;
+    B.forEach(([l, x, y], i) => s += `<g class="lf-in" style="animation-delay:${(.4 + i * .3).toFixed(1)}s"><circle cx="${x}" cy="${y}" r="5" fill="${FG.gold2}">${fanim("r", "4;6;4", 2.4, ` begin="${i * .3}s"`)}</circle>${ftx(x > 200 ? x + 10 : x < 200 ? x - 10 : (i % 2 ? 260 : 140), y, l, { s: 10.5, a: x > 200 ? "start" : x < 200 ? "end" : i % 2 ? "start" : "end" })}</g>`);
+    return fsv(s);
+  },
+  // an emblem drawn in gold
+  emblem({ sym, cap }) { const f = EMB[sym] || EMB.star; return fsv(`<circle cx="200" cy="120" r="100" fill="#132624" stroke="${FG.gold}" stroke-width="1.5"/><circle cx="200" cy="120" r="88" fill="none" stroke="${FG.dim}" stroke-dasharray="2 5" class="spin" style="transform-origin:200px 120px"/>${f()}${cap ? ftx(200, 245, cap, { s: 11.5, c: FG.mute, it: 1 }) : ""}`); },
+  // reuse figures drawn elsewhere on the page
+  reuse({ what, arg }) {
+    if (what === "sigillum" && sky) return sigillumSVG(sky.hours ? sky.hours.dayRuler : "Sun", "Sun").replace(/id="[^"]+"/, "");
+    if (what === "aethyrs") return aethyrSVG(arg || 30).replace(/id="[^"]+"/, "");
+    if (what === "tablet") return tabletSVG(arg || "Air", []).replace(/id="[^"]+"/, "");
+    if (what === "great") return greatTableSVG(null).replace(/id="[^"]+"/, "");
+    if (what === "moon") return fsv(`<circle cx="200" cy="40" r="16" fill="${FG.gold2}"/>${ftx(200, 68, "Sun", { s: 11, c: FG.mute })}` + [0, 45, 90, 135, 180, 225, 270, 315].map((p, i) => `<g transform="translate(${12 + i * 48},110)" class="lf-in" style="animation-delay:${i * .3}s"><g transform="scale(${(42 / 74).toFixed(4)})">${moonSVG(p).replace(/^<svg[^>]*>/, "").replace("</svg>", "")}</g>${ftx(21, 58, ["new", "crescent", "1st qtr", "gibbous", "full", "gibbous", "last qtr", "crescent"][i], { s: 10.5, c: FG.mute })}</g>`).join("") + `<circle r="5" fill="${FG.white}"><animateMotion dur="12s" repeatCount="indefinite" path="M33 205 H369"/></circle>`);
+    return FIGK.emblem({ sym: "star" });
+  },
+  // a chain of steps with arrows and a travelling light
+  flow({ items, cap }) {
+    const n = items.length, vert = n > 4, s0 = vert ? 210 / (n - 1) : 300 / (n - 1); let s = "";
+    const P = items.map((_, i) => vert ? [200, 22 + i * s0] : [50 + i * s0, 120]);
+    for (let i = 0; i < n - 1; i++) { const [x1, y1] = P[i], [x2, y2] = P[i + 1]; s += vert ? `<line x1="${x1}" y1="${y1 + 13}" x2="${x2}" y2="${y2 - 15}" stroke="${FG.dim}" stroke-width="1.5" marker-end="url(#lfarr)" class="lf-in" style="animation-delay:${(i * .4 + .2).toFixed(1)}s"/>` : `<line x1="${x1 + 30}" y1="${y1}" x2="${x2 - 32}" y2="${y2}" stroke="${FG.dim}" stroke-width="1.5" marker-end="url(#lfarr)" class="lf-in" style="animation-delay:${(i * .4 + .2).toFixed(1)}s"/>`; }
+    items.forEach((l, i) => { const [x, y] = P[i]; s += `<g class="lf-in" style="animation-delay:${(i * .4).toFixed(1)}s">${vert ? `<rect x="70" y="${y - 13}" width="260" height="26" rx="13" fill="#132624" stroke="${FG.gold}"/>${ftx(200, y, l, { s: 12 })}` : `<rect x="${x - 34}" y="${y - 44}" width="68" height="88" rx="10" fill="#132624" stroke="${FG.gold}"/>${wrapT(l, x, y, 0, 10, 11)}`}</g>`; });
+    const d = P.map((p, i) => `${i ? "L" : "M"}${vert ? 62 : p[0]} ${vert ? p[1] : 180}`).join(" ");
+    s += `<circle r="5" fill="${FG.gold2}"><animateMotion dur="${n * 1.2}s" repeatCount="indefinite" path="${d}"/></circle>`;
+    return fsv(`<defs><marker id="lfarr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="${FG.dim}"/></marker></defs>${s}${cap ? ftx(200, 250, cap, { s: 11, c: FG.mute, it: 1 }) : ""}`);
+  },
+  // two columns set against each other
+  compare({ a, ai, b, bi, cap }) {
+    let s = `<line x1="200" y1="20" x2="200" y2="225" stroke="${FG.gold}" stroke-opacity=".5" class="draw" style="--len:210"/>`;
+    [[a, ai, 105, FG.gold2], [b, bi, 295, FG.teal]].forEach(([h, li, x, col], k) => {
+      s += `<g class="lf-in" style="animation-delay:${k * .3}s"><rect x="${x - 88}" y="18" width="176" height="34" rx="8" fill="#132624" stroke="${col}"/>${wrapT(h, x, 35, 0, 26, 13, "middle", col)}</g>`;
+      (li || []).forEach((t, i) => s += `<g class="lf-in" style="animation-delay:${(.6 + i * .45 + k * .2).toFixed(2)}s"><circle cx="${x - 80}" cy="${78 + i * 40}" r="3" fill="${col}"/>${wrapT(t, x - 72, 78 + i * 40, 0, 26, 12, "start")}</g>`); });
+    return fsv(s + (cap ? ftx(200, 248, cap, { s: 11, c: FG.mute, it: 1 }) : ""));
+  },
+  // the 'zodiac man' of medical astrology: Aries at the head, Pisces at the feet
+  zodman() {
+    const parts = [["head", 30], ["neck", 52], ["arms", 74], ["chest", 94], ["heart", 114], ["belly", 134], ["loins", 154], ["genitals", 174], ["thighs", 194], ["knees", 214], ["shins", 232], ["feet", 250]];
+    let s = `<circle cx="200" cy="30" r="16" fill="none" stroke="${FG.dim}" stroke-width="2"/><path d="M200 46 V176 M200 66 L160 128 M200 66 L240 128 M200 176 L182 250 M200 176 L218 250" fill="none" stroke="${FG.dim}" stroke-width="2.5" class="draw" style="--len:400"/>`;
+    parts.forEach(([p, y], i) => { const R = i % 2; s += `<g class="lf-in" style="animation-delay:${(.3 + i * .25).toFixed(2)}s"><line x1="${R ? 214 : 186}" y1="${y}" x2="${R ? 262 : 138}" y2="${y}" stroke="${FG.line}"/><text x="${R ? 272 : 128}" y="${y}" text-anchor="${R ? "start" : "end"}" dominant-baseline="central" ${GF} font-size="14" fill="${ELC[i % 4]}">${SIGN_G[i]}</text>${ftx(R ? 292 : 108, y, p, { s: 10.5, a: R ? "start" : "end", c: FG.mute })}</g>`; });
+    return fsv(s);
+  },
+  // Luria's contraction: the light withdraws, a space opens, a single ray enters
+  tzim() {
+    return fsv(`<circle cx="200" cy="120" r="110" fill="${FG.gold2}" fill-opacity=".22"/><circle cx="200" cy="120" r="0" fill="${FG.bg}">${fanim("r", "0;70;70;70", 9)}</circle>
+      <line x1="200" y1="10" x2="200" y2="10" stroke="${FG.white}" stroke-width="2.5">${fanim("y2", "10;10;120;120", 9)}</line>
+      ${[0, 1, 2, 3].map(i => `<circle cx="200" cy="120" r="${18 + i * 14}" fill="none" stroke="${FG.gold}" stroke-opacity="0">${fanim("stroke-opacity", "0;0;.6;.6", 9, ` keyTimes="0;.${6 + i};.${7 + i};1"`)}</circle>`).join("")}
+      ${ftx(200, 248, "light withdraws · a space opens · one ray (the kav) enters", { s: 11, c: FG.mute, it: 1 })}`);
+  },
+  // the breaking of the vessels and the rising sparks
+  shevirah() {
+    const V = [[160, 30], [210, 60], [110, 60], [210, 105], [110, 105], [160, 130], [210, 160], [110, 160], [160, 185], [160, 215]];
+    let s = V.map(([x, y], i) => i < 3 ? `<circle cx="${x}" cy="${y}" r="12" fill="${FG.gold2}" fill-opacity=".5" stroke="${FG.gold}"/>` :
+      `<g><circle cx="${x}" cy="${y}" r="12" fill="${FG.gold2}" fill-opacity=".35" stroke="${FG.gold}">${fanim("opacity", "1;1;0;0;1", 8)}</circle>${[-1, 1].map(k => `<path d="M${x} ${y - 12} A12 12 0 0 ${k > 0 ? 1 : 0} ${x} ${y + 12}" fill="none" stroke="${FG.dim}" stroke-width="2" opacity="0">${fanim("opacity", "0;0;1;1;0", 8)}<animateTransform attributeName="transform" type="translate" values="0 0;0 0;${k * 10} 30;${k * 14} 40;0 0" dur="8s" repeatCount="indefinite"/></path>`).join("")}<circle cx="${x}" cy="${y + 30}" r="2.5" fill="${FG.white}" opacity="0">${fanim("opacity", "0;0;0;1;0", 8)}${fanim("cy", `${y + 30};${y + 30};${y + 30};${y - 10};${y - 20}`, 8)}</circle></g>`).join("");
+    return fsv(s + ftx(310, 110, "three vessels hold;", { s: 12, c: FG.mute, it: 1 }) + ftx(310, 130, "seven shatter;", { s: 12, c: FG.mute, it: 1 }) + ftx(310, 150, "sparks wait to be raised", { s: 12, c: FG.mute, it: 1 }));
+  },
+  // Llull's turning wheels of letters
+  llull() {
+    const L = [..."BCDEFGHIK"], ring = (r, rev, col, dur) => `<g class="spin" style="transform-origin:200px 125px;animation-duration:${dur}s${rev ? ";animation-direction:reverse" : ""}"><circle cx="200" cy="125" r="${r}" fill="none" stroke="${col}" stroke-width="1.2"/>${L.map((ch, i) => { const [x, y] = pol(200, 125, r - 14, i * 40); return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" dominant-baseline="central" font-family="IM Fell English SC, serif" font-size="14" fill="${col}">${ch}</text>`; }).join("")}</g>`;
+    return fsv(ring(110, 0, FG.gold2, 40) + ring(75, 1, FG.teal, 28) + `<circle cx="200" cy="125" r="34" fill="#132624" stroke="${FG.gold}"/>${ftx(200, 125, "A: God", { s: 12, c: FG.gold2 })}`);
+  }
+};
+
+function wrapT(t, x, y, dir, wmax, size, anchor, col, center) {
+  const words = String(t).split(" "), lines = []; let cur = "";
+  words.forEach(w => { if ((cur + " " + w).trim().length > wmax) { lines.push(cur.trim()); cur = w; } else cur += " " + w; }); if (cur.trim()) lines.push(cur.trim());
+  const lh = (size || 12) * 1.25, y0 = dir < 0 ? y - (lines.length - 1) * lh : dir > 0 ? y : y - (lines.length - 1) * lh / 2;
+  return lines.map((l, i) => `<text x="${x}" y="${(y0 + i * lh).toFixed(1)}" text-anchor="${anchor || "middle"}" dominant-baseline="central" font-family="EB Garamond, serif" font-size="${size || 12}" fill="${col || FG.ink}"${center ? ` class="lf-in" style="animation-delay:${(.6 + i * .35).toFixed(2)}s"` : ""}>${esc(l)}</text>`).join("");
+}
+function flameS(x, y, k) { k = k || 1; return `<g transform="translate(${x},${y}) scale(${k})"><path d="M0 0 C-12 -10 -8 -24 0 -36 C8 -24 12 -10 0 0Z" fill="#e07b2a">${fanim("d", "M0 0 C-12 -10 -8 -24 0 -36 C8 -24 12 -10 0 0Z;M0 0 C-10 -12 -10 -26 2 -40 C8 -24 12 -10 0 0Z;M0 0 C-12 -10 -8 -24 0 -36 C8 -24 12 -10 0 0Z", 1.2)}</path><path d="M0 0 C-6 -6 -4 -14 0 -20 C4 -14 6 -6 0 0Z" fill="#f4d27a"/></g>`; }
+const EMB = {
+  star: () => fdraw("M200 40 L223 98 L285 98 L235 135 L254 195 L200 158 L146 195 L165 135 L115 98 L177 98 Z", 600, .2, { c: FG.gold2, w: 2 }),
+  cross: () => fdraw("M200 40 V200 M150 95 H250", 300, .2, { c: FG.gold2, w: 4 }) + `<circle cx="200" cy="95" r="22" fill="none" stroke="${FG.red}" stroke-width="2" class="lf-in" style="animation-delay:1s"/>`,
+  rose: () => [0, 1, 2, 3, 4].map(i => `<ellipse cx="200" cy="96" rx="16" ry="28" fill="${FG.red}" fill-opacity=".5" stroke="${FG.red}" transform="rotate(${i * 72} 200 120)" class="lf-in" style="animation-delay:${i * .2}s"/>`).join("") + `<circle cx="200" cy="120" r="12" fill="${FG.gold2}"/>` + fdraw("M200 30 V210 M110 120 H290", 360, 1.2, { c: FG.gold, w: 2 }),
+  pelican: () => fdraw("M150 170 Q150 110 200 100 Q250 110 250 170 Z M200 100 Q205 70 230 62 Q252 58 248 80 Q240 88 222 84 Q215 95 210 108", 700, .1, { c: FG.ink, w: 2 }) + [0, 1, 2].map(i => `<circle cx="${175 + i * 25}" cy="185" r="7" fill="none" stroke="${FG.ink}" class="lf-in" style="animation-delay:${1 + i * .2}s"/>`).join("") + `<circle cx="205" cy="128" r="3" fill="${FG.red}">${fanim("cy", "120;185", 2.5)}</circle>`,
+  phoenix: () => fdraw("M200 70 Q170 110 130 90 Q160 130 200 140 Q240 130 270 90 Q230 110 200 70 Z M200 140 V170", 600, .1, { c: FG.gold2, w: 2 }) + flameS(200, 205, 1.8),
+  ouroboros: () => `<circle cx="200" cy="120" r="62" fill="none" stroke="${FG.green}" stroke-width="12" stroke-dasharray="360 30" class="spin" style="transform-origin:200px 120px"/><circle cx="262" cy="120" r="9" fill="${FG.green}"/>`,
+  rebis: () => `<circle cx="200" cy="120" r="50" fill="none" stroke="${FG.gold}"/><circle cx="182" cy="96" r="14" fill="${FG.red}" fill-opacity=".7"/><circle cx="218" cy="96" r="14" fill="${FG.white}" fill-opacity=".6"/>` + fdraw("M200 110 V180 M170 140 H230 M200 180 L180 205 M200 180 L220 205", 240, .4, { c: FG.ink, w: 2 }),
+  lion: () => `<circle cx="160" cy="120" r="28" fill="${FG.green}" fill-opacity=".6"/><circle cx="240" cy="120" r="28" fill="${FG.gold2}">${fanim("r", "28;12;28", 6)}</circle>` + ftx(200, 175, "the green lion devours the sun", { s: 11, it: 1, c: FG.mute }),
+  stone: () => `<polygon points="200,55 255,90 255,150 200,185 145,150 145,90" fill="${FG.red}" fill-opacity=".45" stroke="${FG.gold2}" stroke-width="2"><animate attributeName="fill-opacity" values=".25;.7;.25" dur="3s" repeatCount="indefinite"/></polygon>` + fdraw("M200 55 V185 M145 90 L255 150 M255 90 L145 150", 400, .3, { c: FG.gold, w: 1 }),
+  tablet: () => `<path d="M140 60 Q140 40 160 40 H240 Q260 40 260 60 V200 H140 Z" fill="#1d3b2c" stroke="${FG.gold2}" stroke-width="2"/>` + [0, 1, 2, 3, 4, 5, 6].map(i => `<line x1="155" x2="${245 - (i % 3) * 12}" y1="${70 + i * 18}" y2="${70 + i * 18}" stroke="${FG.gold}" class="draw" style="--len:100;animation-delay:${i * .25}s"/>`).join(""),
+  book: () => `<path d="M200 70 Q160 55 110 62 V180 Q160 172 200 186 Q240 172 290 180 V62 Q240 55 200 70 Z" fill="#2a2418" stroke="${FG.gold}"/><line x1="200" y1="70" x2="200" y2="186" stroke="${FG.gold}"/>` + [0, 1, 2, 3, 4].map(i => `<line x1="122" x2="188" y1="${85 + i * 18}" y2="${85 + i * 18}" stroke="${FG.mute}" class="draw" style="--len:70;animation-delay:${i * .3}s"/><line x1="212" x2="278" y1="${85 + i * 18}" y2="${85 + i * 18}" stroke="${FG.mute}" class="draw" style="--len:70;animation-delay:${1.5 + i * .3}s"/>`).join(""),
+  eye: () => fdraw("M110 120 Q200 50 290 120 Q200 190 110 120 Z", 420, .1, { c: FG.gold2, w: 2 }) + `<circle cx="200" cy="120" r="24" fill="${FG.teal}"><animate attributeName="cx" values="190;210;190" dur="5s" repeatCount="indefinite"/></circle>`,
+  heart: () => `<path d="M200 185 C120 130 140 70 185 80 Q200 85 200 100 Q200 85 215 80 C260 70 280 130 200 185 Z" fill="${FG.red}" fill-opacity=".55" stroke="${FG.red}">${fanim("fill-opacity", ".35;.75;.35", 1.6)}</path>` + flameS(200, 78, 1),
+  menorah: () => [-3, -2, -1, 0, 1, 2, 3].map(i => `<path d="M${200 + i * 22} 70 Q${200 + i * 22} 150 200 160" fill="none" stroke="${FG.gold}" stroke-width="2.5" class="draw" style="--len:120;animation-delay:${Math.abs(i) * .15}s"/>${flameS(200 + i * 22, 70, .45)}`).join("") + `<line x1="200" y1="160" x2="200" y2="200" stroke="${FG.gold}" stroke-width="3"/><path d="M170 205 H230" stroke="${FG.gold}" stroke-width="3"/>`,
+  ark: () => fdraw("M110 150 Q200 185 290 150 L280 130 H120 Z M150 130 V95 H250 V130", 700, .1, { c: FG.ink, w: 2 }) + `<path d="M80 175 Q120 165 160 175 T240 175 T320 175" fill="none" stroke="${FG.teal}" stroke-width="2">${fanim("d", "M80 175 Q120 165 160 175 T240 175 T320 175;M80 175 Q120 185 160 175 T240 175 T320 175;M80 175 Q120 165 160 175 T240 175 T320 175", 3)}</path>`,
+  castle: () => [0, 1, 2, 3, 4, 5, 6].map(i => `<circle cx="200" cy="120" r="${84 - i * 11}" fill="none" stroke="${FG.gold}" stroke-opacity="${.3 + i * .1}" class="lf-in" style="animation-delay:${i * .25}s"/>`).join("") + `<circle cx="200" cy="120" r="8" fill="${FG.gold2}">${fanim("r", "6;10;6", 2)}</circle>`,
+  cloud: () => `<g opacity=".85">${[[160, 110, 40], [205, 95, 48], [250, 115, 38], [200, 135, 50]].map(([x, y, r], i) => `<circle cx="${x}" cy="${y}" r="${r}" fill="#2b3b3a">${fanim("cx", `${x};${x + 6};${x}`, 6 + i)}</circle>`).join("")}</g><line x1="200" y1="200" x2="200" y2="150" stroke="${FG.gold2}" stroke-width="2"><animate attributeName="y2" values="200;120;200" dur="4s" repeatCount="indefinite"/></line>` + ftx(200, 212, "a dart of longing love", { s: 11, it: 1, c: FG.mute }),
+  bridge: () => fdraw("M90 170 Q200 40 310 170", 320, .1, { c: FG.gold2, w: 4 }) + [0, 1, 2].map(i => `<circle cx="${[130, 200, 270][i]}" cy="${[125, 95, 125][i]}" r="7" fill="${FG.gold}" class="lf-in" style="animation-delay:${.8 + i * .3}s"/>`).join("") + ftx(200, 192, "feet · side · mouth", { s: 11, it: 1, c: FG.mute }),
+  hazelnut: () => `<ellipse cx="200" cy="140" rx="70" ry="22" fill="#2a2418" stroke="${FG.dim}"/><ellipse cx="200" cy="115" rx="24" ry="28" fill="#8a5a2a" stroke="${FG.gold}">${fanim("ry", "26;30;26", 4)}</ellipse>` + ftx(200, 185, "'all that is made', held in the palm", { s: 11, it: 1, c: FG.mute }),
+  scales: () => `<g><animateTransform attributeName="transform" type="rotate" values="-8 200 80;8 200 80;-8 200 80" dur="5s" repeatCount="indefinite"/><line x1="130" y1="80" x2="270" y2="80" stroke="${FG.gold2}" stroke-width="3"/><path d="M130 80 L115 140 H145 Z M270 80 L255 140 H285 Z" fill="none" stroke="${FG.gold}"/></g><line x1="200" y1="70" x2="200" y2="200" stroke="${FG.gold}" stroke-width="3"/>`,
+  monad: () => fdraw("M200 70 A26 26 0 1 1 199.9 70 M174 66 A30 30 0 0 0 226 66 M200 122 V190 M172 152 H228 M182 190 L172 205 M218 190 L228 205", 520, .1, { c: FG.gold2, w: 2.2 }) + `<circle cx="200" cy="96" r="4" fill="${FG.gold2}"/>`,
+  icon: () => `<rect x="140" y="40" width="120" height="160" rx="6" fill="#3a2a12" stroke="${FG.gold2}" stroke-width="2"/><circle cx="200" cy="95" r="34" fill="${FG.gold2}" fill-opacity=".6"/><circle cx="200" cy="98" r="18" fill="#c08a5a"/><path d="M165 200 Q170 140 200 132 Q230 140 235 200" fill="${FG.red}" fill-opacity=".6"/>`,
+  desert: () => `<circle cx="280" cy="70" r="22" fill="${FG.gold2}">${fanim("opacity", ".7;1;.7", 4)}</circle><path d="M100 180 Q150 140 200 175 T300 170 L300 200 L100 200Z" fill="#7a5a2a" fill-opacity=".6"/><path d="M180 175 V140 L195 125 L210 140 V175" fill="none" stroke="${FG.ink}" stroke-width="2"/>`,
+  dove: () => fdraw("M140 120 Q180 90 200 110 Q230 70 280 80 Q240 100 230 120 Q260 130 280 150 Q230 150 200 130 Q170 145 140 120 Z", 600, .1, { c: FG.white, w: 2 }) + `<g>${fanim("opacity", ".3;1;.3", 3)}${[0, 1, 2, 3, 4, 5].map(i => `<line x1="210" y1="140" x2="${150 + i * 25}" y2="215" stroke="${FG.gold2}" stroke-opacity=".5"/>`).join("")}</g>`,
+  tetragrammaton: () => [..."הוהי"].map((L, i) => ftx(275 - i * 50, 120, L, { s: 52, c: FG.gold2, f: "Times New Roman", d: i * .4 })).join(""),
+  pentagram: () => [..."הושהי"].map((L, i) => ftx(276 - i * 38, 120, L, { s: 40, c: i === 2 ? "#e07b2a" : FG.gold2, f: "Times New Roman", d: i * .35 })).join(""),
+  shield: () => fdraw("M200 50 L270 90 L270 160 L200 200 L130 160 L130 90 Z M200 50 V200 M130 90 L270 160 M270 90 L130 160", 900, .1, { c: FG.gold2, w: 2 }),
+  sun: () => `<circle cx="200" cy="120" r="34" fill="${FG.gold2}"/>` + [...Array(12)].map((_, i) => { const [x1, y1] = pol(200, 120, 44, i * 30), [x2, y2] = pol(200, 120, 70, i * 30); return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${FG.gold2}" stroke-width="3" class="lf-in" style="animation-delay:${i * .08}s"/>`; }).join(""),
+  wheel: () => `<g class="spin" style="transform-origin:200px 120px;animation-duration:20s"><circle cx="200" cy="120" r="70" fill="none" stroke="${FG.gold2}" stroke-width="3"/>${[0, 1, 2, 3, 4, 5, 6, 7].map(i => { const [x, y] = pol(200, 120, 70, i * 45); return `<line x1="200" y1="120" x2="${x}" y2="${y}" stroke="${FG.gold}"/>`; }).join("")}</g>`,
+  chess: () => [...Array(8)].map((_, r) => [...Array(8)].map((_, c) => `<rect x="${136 + c * 16}" y="${56 + r * 16}" width="16" height="16" fill="${["#d9c45a", "#4f86c6", "#5f7a3a", "#c4553c"][(r < 4 ? 0 : 2) + (c < 4 ? 0 : 1)]}" fill-opacity="${(r + c) % 2 ? .35 : .7}"/>`).join("")).join(""),
+  candles: () => [170, 230].map((x, i) => `<rect x="${x - 9}" y="110" width="18" height="80" rx="3" fill="${FG.white}" fill-opacity=".85"/>${flameS(x, 108, 1)}`).join("") + `<path d="M130 192 H270" stroke="${FG.gold}" stroke-width="3"/>`,
+  tabor: () => `<path d="M100 200 L200 90 L300 200 Z" fill="#2a3a30" stroke="${FG.dim}"/>` + [...Array(10)].map((_, i) => { const [x, y] = pol(200, 80, 80, -90 + i * 20); return `<line x1="200" y1="80" x2="${x}" y2="${y}" stroke="${FG.gold2}" stroke-opacity=".7" stroke-width="2" class="lf-in" style="animation-delay:${i * .1}s"/>`; }).join("") + `<circle cx="200" cy="80" r="14" fill="${FG.white}">${fanim("r", "12;18;12", 4)}</circle>`,
+  chalice: () => fdraw("M160 70 H240 Q240 130 200 140 Q160 130 160 70 Z M200 140 V185 M170 195 H230", 480, .1, { c: FG.gold2, w: 2.5 }) + `<circle cx="200" cy="52" r="16" fill="none" stroke="${FG.white}" stroke-width="2" class="lf-in" style="animation-delay:1s"/>`,
+  mirror: () => `<ellipse cx="200" cy="120" rx="55" ry="70" fill="#0a0f10" stroke="${FG.gold2}" stroke-width="3"/><ellipse cx="190" cy="100" rx="14" ry="22" fill="#fff" opacity=".08">${fanim("opacity", ".03;.18;.03", 5)}</ellipse>`
+};
+function figFor(sec, title) {
+  const sp = (LFIG[sec] || {})[title]; if (!sp) return "";
+  try { const html = FIGK[sp.k](sp); return html ? `<div class="figure lfig-wrap">${html}${sp.c ? `<p class="cap">${sp.c}</p>` : ""}</div>` : ""; } catch (e) { return ""; }
+}
+
+/* one drawing or animation per Learn unit: { k: kind, ...parameters, c: caption } */
+const LFIG = {
+astro: {
+  "What astrology claims": { k: "wheel", labels: ["The sky is divided into twelve signs", "The planets move through them", "Their pattern at a given moment is read as meaning"], c: "Astrology's basic claim: the pattern of the sky at a moment says something about that moment." },
+  "The two lights": { k: "reuse", what: "moon", c: "The Moon's phases are its changing angle to the Sun: new, waxing, full, waning. The lunation is the two lights' monthly conversation." },
+  "Mercury, Venus and Mars": { k: "triad", items: ["Mercury: mind, speech, trade", "Venus: love, value, beauty", "Mars: drive, conflict, courage"], glyphs: ["☿", "♀", "♂"], c: "The three planets closest to us after the Moon, and the everyday faculties they stand for." },
+  "Jupiter and Saturn": { k: "compare", a: "Jupiter ♃", ai: ["expands and opens", "about 12 years to circle the zodiac", "the 'greater benefic'"], b: "Saturn ♄", bi: ["limits and shapes", "about 29½ years to circle the zodiac", "the 'greater malefic'"], c: "The two slowest planets visible to the eye: the tradition's pair of growth and limit." },
+  "Uranus, Neptune and Pluto": { k: "timeline", ev: [["1781", "Uranus found by William Herschel"], ["1846", "Neptune found by Le Verrier and Galle"], ["1930", "Pluto found by Clyde Tombaugh"]], c: "Invisible to the naked eye, these were unknown to traditional astrology, which used only the seven planets." },
+  "The six axes": { k: "wheel", mode: "axes", labels: ["Each sign faces its opposite", "Aries–Libra: self and other", "Taurus–Scorpio: mine and ours"], c: "Twelve signs make six axes. Opposite signs are read as two ends of one question." },
+  "The twelve houses, one by one": { k: "wheel", mode: "houses", c: "The houses count counter-clockwise from the Ascendant on the left. Each is a field of life: self, resources, siblings, home, and so on." },
+  "House systems": { k: "wheel", mode: "houses", labels: ["Whole sign: each sign is one house", "Equal: 30° from the Ascendant", "Placidus: divided by the time each degree takes to rise"], c: "Three common ways to cut the same sky into twelve houses." },
+  "Orbs, applying and separating": { k: "wheel", mode: "orb", labels: ["Orb: the allowance around an exact aspect", "Applying: moving toward exact, getting stronger", "Separating: moving away, fading"], c: "The white planet sweeps through the shaded orb of a trine to the gold one." },
+  "Retrograde motion": { k: "orbit", mode: "retro", c: "As the faster Earth (blue) overtakes Mars (red), Mars seems to stop, loop backward and go on." },
+  "Reading a birth chart: a method": { k: "ladder", items: ["1 Day or night chart?", "2 The Ascendant and its ruler", "3 The Sun and the Moon", "4 Each planet by sign and house", "5 The aspects", "6 Dignity and condition", "7 Synthesis: repeated testimony"], c: "One way to climb a chart step by step, from the frame to the synthesis." },
+  "From omens to horoscopes": { k: "timeline", ev: [["2nd mill. BC", "Babylonian omen lists (Enuma Anu Enlil)"], ["410 BC", "the oldest known horoscope"], ["4th c. BC", "twelve equal zodiac signs"], ["c. 150 AD", "Ptolemy's Tetrabiblos"]], c: "From signs in the sky for kings to charts for individual births." },
+  "The Hellenistic synthesis": { k: "triad", items: ["Babylonian planets and omens", "Egyptian decans and hours", "Greek geometry and philosophy"], center: "Hellenistic Egypt, 2nd–1st c. BC", c: "Three traditions met in Hellenistic Egypt and made the horoscope we still use." },
+  "Sect: day and night": { k: "wheel", mode: "sect", labels: ["Day chart: the Sun above the horizon", "Day team: Sun, Jupiter, Saturn", "Night team: Moon, Venus, Mars"], c: "The Sun's place above or below the horizon decides which team leads." },
+  "The Lots: Fortune and Spirit": { k: "wheel", mode: "lots", labels: ["Measure from the Sun to the Moon", "Lay that same distance off from the Ascendant", "Where it lands is the Lot of Fortune"], c: "A Lot is a point found by measuring an arc between two places and copying it from a third." },
+  "Triplicity rulers": { k: "wheel", hi: [0, 4, 8], labels: ["The three fire signs form a triangle", "Day ruler: the Sun", "Night ruler: Jupiter", "Participating: Saturn"], c: "Each element's three signs share a set of rulers (here Dorotheus's fire triplicity)." },
+  "Bounds and faces": { k: "wheel", mode: "decans", labels: ["Faces: three 10° slices of each sign", "Bounds: five unequal slices", "Each slice has a planetary ruler"], c: "Long ticks mark each sign's start; short ones its 10° faces." },
+  "Accidental dignity": { k: "wheel", mode: "houses", labels: ["Angular houses (1, 4, 7, 10): strong", "Succedent houses: steady", "Cadent houses: weak"], c: "A planet's strength depends on where it falls, not only on its sign. The bright lines are the angles." },
+  "Hellenistic aspects": { k: "wheel", mode: "aspect", a: 120, labels: ["Trine, 120°: ease", "Square, 90°: friction", "Opposition, 180°: polarity", "Sextile, 60°: opportunity"], c: "Aspects were counted by whole signs: a trine is four signs apart." },
+  "Profections": { k: "cycle", items: [["1st · ages 0, 12, 24"], ["2nd · 1, 13, 25"], ["3rd · 2, 14, 26"], ["4th · 3, 15, 27"], ["5th · 4, 16, 28"], ["6th · 5, 17, 29"], ["7th · 6, 18, 30"], ["8th · 7, 19, 31"], ["9th · 8, 20, 32"], ["10th · 9, 21, 33"], ["11th · 10, 22, 34"], ["12th · 11, 23, 35"]], center: "one house per year", c: "Annual profections move the Ascendant one sign a year, coming back to the 1st house every twelve years." },
+  "Zodiacal releasing and firdaria": { k: "bars", u: "", items: [["☉", 10], ["♀", 8], ["☿", 13], ["☽", 9], ["♄", 11], ["♃", 12], ["♂", 7], ["☊☋", 5]], c: "Firdaria for a day birth: 75 years divided into planetary periods (numbers are years)." },
+  "Transits": { k: "orbit", mode: "speed", c: "Transits are where the planets are now, read against the birth chart. The slow ones mark long chapters." },
+  "Progressions and returns": { k: "flow", items: ["one day after birth", "stands for one year", "day 30 = age 30"], c: "Secondary progressions: a day for a year. A solar return is the Sun's yearly arrival at its birth degree." },
+  "Ptolemy's natural philosophy": { k: "square", c: "Ptolemy explained each planet by the four qualities, hot, cold, wet and dry, the same scheme as the four elements." },
+  "The Magi and the early Church": { k: "emblem", sym: "star", c: "Matthew 2: the Magi, astrologers from the East, follow a star to Bethlehem." },
+  "Augustine and the twins": { k: "union", a: "Esau", b: "Jacob", m: "born together, unlike lives" },
+  "Baghdad: Masha'allah and Abu Ma'shar": { k: "timeline", ev: [["762", "Baghdad founded, its moment chosen by astrologers including Masha'allah"], ["787", "Abu Ma'shar born in Balkh"], ["886", "Abu Ma'shar dies"]], c: "The Abbasid capital made astrology a court science." },
+  "Great conjunctions and the ages of history": { k: "wheel", mode: "trigon", labels: ["Jupiter meets Saturn every ~20 years", "Each meeting falls about 240° on", "They stay in one element for ~200 years, then shift"], c: "Abu Ma'shar read history from this slowly turning triangle." },
+  "Aquinas: the stars incline but do not compel": { k: "page", t: "Astra inclinant", by: "a scholastic maxim, after Aquinas", q: "The stars incline; they do not compel." },
+  "Horary astrology": { k: "wheel", mode: "houses", labels: ["Cast for the moment a question is asked", "The asker: the 1st house", "The matter: its own house"], c: "Horary judges a question from the chart of the moment it is asked." },
+  "Electional astrology": { k: "flow", items: ["the goal", "a well-placed Moon", "a strong ruler of the matter", "the hour"], c: "Election works backward: from a goal to a moment worth starting it." },
+  "Medical astrology": { k: "zodman", c: "The 'zodiac man' of medieval almanacs: Aries rules the head, Pisces the feet." },
+  "Ficino's astrological medicine of the soul": { k: "triad", items: ["Sun", "Jupiter", "Venus"], glyphs: ["☉", "♃", "♀"], center: "against Saturn's melancholy", c: "Ficino's De vita (1489): music, scents, colors and light to draw in the 'Graces'." },
+  "Precession and the two zodiacs": { k: "orbit", mode: "precession", c: "Earth's wobbling axis slides the equinox backward through the stars, so the tropical and sidereal zodiacs drift apart." },
+  "Fixed stars and lunar mansions": { k: "rings", items: ["1 al-Sharatain", "2 al-Butain", "3 al-Thurayya (the Pleiades)", "4 al-Dabaran", "5 al-Haq'a", "6 al-Han'a", "… 28 Batn al-Hut"], c: "The 28 mansions: roughly one night of the Moon's journey each." },
+  "Kepler's reform": { k: "page", t: "Tertius Interveniens", by: "Johannes Kepler, 1610", nq: 1, q: "His warning: don't throw out the baby with the bathwater." },
+  "The fall and the revival": { k: "timeline", ev: [["1647", "Lilly's Christian Astrology"], ["c. 1700", "dropped by the universities"], ["1890s", "Alan Leo's revival"], ["1930", "first newspaper horoscope column"]], c: "Out of the academy, back through the popular press." },
+  "The evidence": { k: "bars", items: [["Chance", 33, "#5e6b66"], ["Astrologers", 34]], c: "Carlson, Nature 1985: picking the right personality profile for a chart, at chance level." },
+  "Astrology as a contemplative language": { k: "emblem", sym: "eye", c: "Reading the sky as a book of signs to contemplate, not a machine of causes." },
+  "Capstone: your chart, whole": { k: "wheel", mode: "houses", labels: ["Sect and the lights", "The Ascendant ruler", "Repeated themes", "One sentence"], c: "The whole chart, gathered into a single reading." }
+},
+tarot: {
+  "The Fool's journey": { k: "cards", ids: [0, 1, 7, 13, 16, 19, 21], c: "From the Fool to the World: a road through the 21 trumps." },
+  "The majors I: the powers": { k: "cards", ids: [1, 2, 3, 4, 5, 6, 7], c: "Trumps I–VII: the powers that shape a life." },
+  "The majors II: the turning": { k: "cards", ids: [8, 9, 10, 11, 12, 13, 14], c: "Trumps VIII–XIV: the turn inward." },
+  "The majors III: the descent and the light": { k: "cards", ids: [15, 16, 17, 18, 19, 20, 21], c: "Trumps XV–XXI: through the shadow to the light." },
+  "The four suits": { k: "cards", ids: [22, 36, 50, 64], c: "The four Aces: Wands (fire), Cups (water), Swords (air), Pentacles (earth)." },
+  "Ace to Ten": { k: "cards", ids: [36, 37, 38, 39, 40, 41, 42, 43, 44, 45], c: "Ace to Ten of Cups: a story in ten steps." },
+  "The court cards": { k: "cards", ids: [32, 33, 34, 35], c: "Page, Knight, Queen and King of Wands." },
+  "Pamela Colman Smith": { k: "cards", ids: [52, 40, 59], c: "Smith drew a full scene for every minor card in 1909, which made them readable at a glance." },
+  "Spreads": { k: "spread", pos: [[120, 130, 0], [120, 130, 90], [120, 58, 0], [120, 202, 0], [60, 130, 0], [180, 130, 0], [300, 222, 0], [300, 164, 0], [300, 106, 0], [300, 48, 0]], c: "The Celtic Cross: ten positions, dealt in order." },
+  "Reversals": { k: "cards", ids: [17, 17], rev: [1], c: "The Star, upright and reversed." },
+  "Keeping a tarot journal": { k: "emblem", sym: "book", c: "Date, question, cards, first impression; then, later, what happened." },
+  "Cards come to Europe": { k: "timeline", ev: [["c. 1370", "Mamluk-style cards reach Europe"], ["1377", "Johannes of Rheinfelden describes them"], ["c. 1440", "trumps added in northern Italy"]], c: "Ordinary playing cards came first; the trumps were an Italian addition." },
+  "The triumphs of Milan": { k: "page", t: "Visconti-Sforza", by: "Milan, c. 1450", nq: 1, q: "Hand-painted triumphs on gold leaf, made for the ruling family." },
+  "The Marseille pattern": { k: "page", t: "Tarot de Marseille", by: "Noblet c. 1650 · Conver 1760", nq: 1, q: "The woodcut pattern that fixed the order and images of the trumps for two centuries." },
+  "The Egyptian myth": { k: "timeline", ev: [["1781", "Court de Gébelin: 'the Book of Thoth'"], ["1785", "Etteilla's tarot method"], ["1822", "Champollion reads hieroglyphs"]], c: "The Egyptian story began before anyone could read Egyptian, and nothing Egyptian was found in the cards." },
+  "Éliphas Lévi and the letters": { k: "letters", l: "אבג", sub: ["Aleph: I, the Magician", "Beth: II, the Priestess", "Gimel: III, the Empress"], c: "Lévi matched the 22 Hebrew letters to the trumps, starting Aleph with the Magician." },
+  "The Golden Dawn's tarot": { k: "letters", l: "אבג", sub: ["Aleph: 0, the Fool", "Beth: I, the Magician", "Gimel: II, the Priestess"], c: "The Golden Dawn moved the Fool to Aleph, shifting every letter by one." },
+  "Elemental dignities": { k: "square", c: "Neighboring elements share a quality and help each other; opposite ones, like fire and water, weaken each other." },
+  "Crowley and Lady Frieda Harris": { k: "timeline", ev: [["1938", "Harris begins painting"], ["1943", "the 78 paintings finished"], ["1944", "The Book of Thoth"], ["1969", "the deck first printed"]], c: "Five years of work, and 25 more before anyone could buy the deck." },
+  "The two swaps": { k: "compare", a: "Golden Dawn", ai: ["Strength ⇄ Justice", "VIII and XI swapped", "so Leo comes before Libra"], b: "Crowley", bi: ["Emperor ⇄ Star", "Tzaddi and Heh swapped", "'Tzaddi is not the Star'"], c: "Two changes to the order, made for two different reasons." },
+  "The court cards as elements of elements": { k: "cards", ids: [32, 33, 34, 35], c: "Wands are fire: the Page is earth of fire, Knight air of fire, Queen water of fire, King fire of fire." },
+  "Tomberg and his Meditations": { k: "page", t: "Meditations on the Tarot", by: "Valentin Tomberg; published 1980", nq: 1, q: "22 letters to an 'unknown friend': a journey into Christian Hermeticism." },
+  "The Magician: concentration without effort": { k: "cards", ids: [1], c: "Tomberg's first lesson: attention that is relaxed and complete." },
+  "The Hanged Man and Death in Tomberg": { k: "cards", ids: [12, 13], c: "Suspension and letting go." },
+  "Tomberg's Fool and World": { k: "cards", ids: [0, 21], c: "The two ends of the journey." },
+  "Paul Foster Case and BOTA": { k: "timeline", ev: [["1884", "Case born"], ["1922", "founds the Builders of the Adytum"], ["1947", "The Tarot: A Key to the Wisdom of the Ages"], ["1954", "dies"]], c: "An American school built on Golden Dawn tarot." },
+  "Path-working": { k: "tree", hi: ["M", "Y", "Ti"], labels: ["Malkhut to Yesod: Tav, the World", "Yesod to Tiferet: Samekh, Temperance"], c: "Path-working walks the paths between spheres in imagination, guided by each path's card." },
+  "The Opening of the Key": { k: "ladder", items: ["1 four piles: Yod, Heh, Vav, Heh", "2 twelve houses", "3 twelve signs", "4 thirty-six decans", "5 ten sefirot"], c: "The Golden Dawn's long reading, dealing the whole deck five times." },
+  "The triumph procession": { k: "flow", items: ["Love", "Chastity", "Death", "Fame", "Time", "Eternity"], c: "Petrarch's Trionfi: each power is defeated by the next, the model for the trumps." },
+  "The Sola Busca and the minors": { k: "timeline", ev: [["c. 1491", "Sola Busca: the first fully illustrated minors"], ["1907", "photographs shown in London"], ["1909", "Smith echoes it in the Rider-Waite deck"]], c: "A Renaissance deck behind the modern scene cards." },
+  "Why readings feel meaningful": { k: "cycle", items: [["a rich, open image"], ["your situation"], ["you supply the link"], ["it feels personal"]], center: "projection", c: "Psychology's explanation: the image is open, and the mind fills it." },
+  "Reading for others": { k: "union", a: "reader", b: "querent", m: "shared attention" },
+  "Designing your own spread": { k: "spread", pos: [[200, 130, 0, "heart"], [130, 130, 0, "past"], [270, 130, 0, "next"], [200, 55, 0, "aim"], [200, 205, 0, "root"]], c: "A spread is a question broken into positions. Name each position before you deal." },
+  "Capstone: a year with the cards": { k: "dial", items: [["Jan", 0], ["Feb", 30], ["Mar", 60], ["Apr", 90], ["May", 120], ["Jun", 150], ["Jul", 180], ["Aug", 210], ["Sep", 240], ["Oct", 270], ["Nov", 300], ["Dec", 330]], c: "Twelve months, one card each, read again at the year's end." }
+},
+alch: {
+  "What alchemy was": { k: "triad", items: ["Chemistry: work on matter", "Medicine: the elixir", "Spirit: work on the soul"], center: "one Work", c: "Alchemy was all three at once, in varying proportions." },
+  "The Emerald Tablet": { k: "emblem", sym: "tablet", c: "'What is below is like what is above': the short text alchemists treated as their charter." },
+  "Elements and qualities": { k: "square", c: "Each element joins two qualities. Change one quality and one element becomes another." },
+  "Sulfur and mercury": { k: "union", a: "Sulfur: fixed, hot", b: "Mercury: volatile, cold", m: "the metals" },
+  "Paracelsus and the three principles": { k: "triad", items: ["Sulfur: soul", "Mercury: spirit", "Salt: body"], glyphs: ["Sulphur", "☿", "Salt"], c: "Paracelsus added salt to the medieval pair." },
+  "The colors of the Work": { k: "vessel", kind: "egg", label: "nigredo · albedo · citrinitas · rubedo", c: "Black, white, yellow, red: the matter in the sealed egg changes color as the Work goes on." },
+  "The laboratory": { k: "vessel", kind: "athanor", label: "the athanor", c: "The athanor, a furnace that keeps a steady, gentle heat for weeks." },
+  "Why alchemists wrote in riddles": { k: "page", t: "Decknamen", by: "'cover names'", nq: 1, q: "Green lion, black crow, white swan: one substance, many names." },
+  "Reading an emblem: Splendor Solis": { k: "emblem", sym: "sun", c: "Splendor Solis (1532–35): 22 painted plates of the Work." },
+  "Alexandria": { k: "timeline", ev: [["1st–3rd c. AD", "Maria the Jewess: the water bath"], ["c. 300", "Zosimos of Panopolis"], ["391", "the Serapeum destroyed"]], c: "Alexandria, where Greek philosophy met Egyptian craft." },
+  "Baghdad and the elixir": { k: "timeline", ev: [["8th–10th c.", "Jabir texts: the sulfur–mercury theory"], ["c. 900", "al-Razi classifies substances"], ["al-iksir", "the elixir, a word we still use"]], c: "Arabic alchemy gave the West its theory and its vocabulary." },
+  "Alchemy enters Latin": { k: "timeline", ev: [["1144", "Robert of Chester translates Morienus"], ["12th c.", "the Toledo translators"], ["c. 1300", "the Summa perfectionis of 'Geber'"]], c: "Alchemy reaches Latin Europe through translation." },
+  "Quintessence and the friars": { k: "vessel", kind: "pelican", label: "circulation in the pelican", c: "John of Rupescissa distilled spirit of wine over and over to draw out a 'fifth essence'." },
+  "The Stone and Christ": { k: "emblem", sym: "stone", c: "The lapis–Christus parallel: death, resurrection, a body glorified." },
+  "The legend of Flamel": { k: "timeline", ev: [["c. 1330", "Nicolas Flamel born"], ["1418", "dies, a rich scrivener"], ["1612", "'his' Hieroglyphic Figures printed"]], c: "The alchemy came two centuries after the man." },
+  "Paracelsus": { k: "route", pts: [["Einsiedeln", 47.13, 8.75], ["Basel", 47.56, 7.59], ["Salzburg", 47.8, 13.04]], c: "Born in Einsiedeln (1493), taught at Basel (1527), died in Salzburg (1541)." },
+  "Basil Valentine and antimony": { k: "page", t: "The Triumphal Chariot of Antimony", by: "'Basil Valentine', printed 1604", nq: 1, q: "Antimony, the grey wolf that devours the king." },
+  "Sendivogius and the food of life": { k: "flow", items: ["air", "a hidden 'food of life'", "saltpetre"], c: "Sendivogius (1604): something in the air keeps us alive." },
+  "The Rosicrucian manifestos": { k: "timeline", ev: [["1614", "Fama Fraternitatis"], ["1615", "Confessio Fraternitatis"], ["1616", "The Chymical Wedding"]], c: "Three anonymous books from Kassel and Strasbourg." },
+  "The great emblem books": { k: "timeline", ev: [["1617", "Maier's Atalanta Fugiens"], ["1625", "Musaeum Hermeticum"], ["1677", "Mutus Liber"]], c: "Alchemy told in pictures." },
+  "Khunrath: oratory and laboratory": { k: "compare", a: "Oratory", ai: ["prayer", "the soul"], b: "Laboratory", bi: ["fire", "matter"], c: "Khunrath's Amphitheatrum: 'lab-oratory', work and prayer in one room." },
+  "Jakob Böhme's signatures": { k: "page", t: "De signatura rerum", by: "Jakob Böhme, 1622", nq: 1, q: "Each thing shows its inner nature in its outward form." },
+  "Vaughan and Fludd": { k: "compare", a: "Thomas Vaughan", ai: ["Anthroposophia Theomagica, 1650", "Welsh, Oxford"], b: "Robert Fludd", bi: ["Utriusque Cosmi, 1617", "macrocosm and microcosm"] },
+  "Newton the alchemist": { k: "page", t: "Newton, the Man", by: "J. M. Keynes", q: "Newton was not the first of the age of reason. He was the last of the magicians." },
+  "Boyle, sceptical and believing": { k: "page", t: "The Sceptical Chymist", by: "Robert Boyle, 1661", nq: 1, q: "He doubted the four elements and the three principles, but still believed in transmutation." },
+  "Atwood and the Victorian turn": { k: "timeline", ev: [["1850", "A Suggestive Inquiry printed"], ["1850", "she withdraws and burns copies"], ["1918", "reissued"]], c: "Mary Anne Atwood made alchemy a spiritual art." },
+  "Jung and projection": { k: "union", a: "matter in the flask", b: "the unconscious", m: "projection" },
+  "The coniunctio": { k: "union", a: "King ☉", b: "Queen ☽", m: "the coniunctio" },
+  "Spagyrics today": { k: "flow", items: ["separate", "purify", "recombine"], c: "Spagyric, from the Greek for 'draw apart' and 'gather together'." },
+  "Did anyone make gold?": { k: "timeline", ev: [["1782", "James Price's 'gold', never repeated"], ["1941", "first gold from mercury, in a particle accelerator"], ["1980", "Seaborg makes gold from bismuth"]], c: "Physics did it, at enormous cost, one atom at a time." },
+  "From alchemy to chemistry": { k: "timeline", ev: [["1661", "Boyle's Sceptical Chymist"], ["1789", "Lavoisier's list of elements"], ["1869", "Mendeleev's periodic table"]], c: "Chemistry kept the laboratory and dropped the cosmology." },
+  "Fulcanelli and the cathedrals": { k: "timeline", ev: [["1926", "Le Mystère des cathédrales"], ["1930", "Les Demeures philosophales"]], c: "Gothic carvings read as alchemy." },
+  "How to read an alchemical text": { k: "ladder", items: ["literal: what happens in the lab", "the cover names", "the stage of the Work", "the inner meaning"], c: "Four layers, read from the ground up." },
+  "The Great Work in the soul": { k: "cycle", items: [["Nigredo", "#4a4a4a"], ["Albedo", "#e9eef0"], ["Citrinitas", "#e1b93f"], ["Rubedo", "#a8261d"]], center: "the soul's Work", c: "The four colors read as stages of inner change." },
+  "Capstone: your Opus": { k: "vessel", kind: "bath", label: "slow, gentle heat", c: "The Work, kept at a gentle heat over a long time." }
+},
+kab: {
+  "The orchard": { k: "page", t: "Hagigah 14b", by: "the four who entered Pardes", nq: 1, q: "Ben Azzai looked and died; Ben Zoma looked and was harmed; Aher cut the shoots; Akiva entered in peace and left in peace." },
+  "The work of creation and the work of the chariot": { k: "compare", a: "Ma'aseh Bereshit", ai: ["the work of creation", "Genesis 1"], b: "Ma'aseh Merkavah", bi: ["the work of the chariot", "Ezekiel 1"], c: "The Mishnah's two secret subjects (Hagigah 2:1)." },
+  "The Book of Formation, I": { k: "letters", l: "אמש", sub: ["Aleph: air", "Mem: water", "Shin: fire"], c: "The three 'mother' letters of the Sefer Yetzirah." },
+  "The Book of Formation, II": { k: "gates", c: "Twenty-two letters on a circle, every pair joined: the 231 'gates' of the Sefer Yetzirah." },
+  "The sefirot as God's life": { k: "tree", c: "The ten sefirot, from Keter at the crown to Malkhut below." },
+  "The names of God": { k: "emblem", sym: "tetragrammaton", c: "YHVH, the Name, which is not pronounced." },
+  "Ein Sof": { k: "rings", items: ["Ein Sof: without end", "Ein Sof Or: endless light", "Keter: the first will", "all that follows"], c: "Ein Sof is beyond every image. The sefirot are how it shows itself." },
+  "The Shekhinah": { k: "tree", hi: ["M"], labels: ["Malkhut: the Shekhinah, God's indwelling presence", "In exile with her people", "Joined to Tiferet on the Sabbath"] },
+  "The three keys: gematria, notarikon, temurah": { k: "gem", parts: [["א", 1], ["ח", 8], ["ד", 4]], sum: 13, eq: "ehad, 'one', and ahavah, 'love', are both 13" },
+  "Kabbalah and the commandments": { k: "tree", hi: ["Ti", "M"], labels: ["Each commandment unites the Holy One (Tiferet)", "with his Shekhinah (Malkhut)", "le-shem yihud: 'for the sake of the union'"] },
+  "The descenders to the chariot": { k: "rings", items: ["1st palace", "2nd palace", "3rd palace", "4th palace", "5th palace", "6th palace", "7th palace: the Throne"], c: "The Hekhalot texts: seven palaces, one inside the next." },
+  "The pietists of Ashkenaz": { k: "timeline", ev: [["c. 1150", "Samuel the Pious"], ["1217", "Judah the Pious dies; Sefer Hasidim"], ["c. 1238", "Eleazar of Worms dies"]], c: "The Rhineland pietists." },
+  "The Bahir and the first Kabbalists": { k: "timeline", ev: [["c. 1180", "the Bahir appears in Provence"], ["c. 1200", "Isaac the Blind"], ["c. 1230", "the Gerona circle"]], c: "Where Kabbalah begins as a movement." },
+  "The Zohar": { k: "page", t: "Zohar", by: "Moses de León, Castile, c. 1280–1300", nq: 1, q: "Written in Aramaic, presented as the teaching of Rabbi Shimon bar Yohai." },
+  "The Zohar's world": { k: "union", a: "Holy One (Tiferet)", b: "Shekhinah (Malkhut)", m: "yihud: union" },
+  "Gikatilla's Gates of Light": { k: "ladder", items: ["Adonai: Malkhut", "El Hai, Shaddai: Yesod", "Elohim Tzevaot: Hod", "YHVH Tzevaot: Netzah", "YHVH: Tiferet", "Elohim: Gevurah", "El: Hesed", "YHVH (read Elohim): Binah", "Yah: Hokhmah", "Ehyeh: Keter"], c: "The book climbs from the lowest divine name to the highest." },
+  "Expulsion and Safed": { k: "route", pts: [["Toledo", 39.9, -4.0], ["Salonica", 40.6, 22.9], ["Istanbul", 41.0, 29.0], ["Safed", 32.97, 35.5]], c: "After 1492, exiles from Spain carried Kabbalah east to Safed." },
+  "Cordovero": { k: "page", t: "Pardes Rimmonim", by: "Moses Cordovero, Safed, 1548", nq: 1, q: "A systematic map of every teaching on the sefirot." },
+  "Luria I: tzimtzum": { k: "tzim", c: "Tzimtzum: Ein Sof withdraws to make room for a world." },
+  "Luria II: breaking and repair": { k: "shevirah", c: "Shevirat ha-kelim, the breaking of the vessels: the sparks are raised through tikkun." },
+  "Luria III: souls and unifications": { k: "flow", items: ["sparks scattered", "a deed with intention", "the spark raised", "tikkun"], c: "Every deed done with kavvanah lifts a spark." },
+  "The false messiah": { k: "timeline", ev: [["1626", "Shabbetai Tzvi born"], ["1665", "Nathan of Gaza proclaims him"], ["1666", "he converts to Islam"]], c: "Lurianic hope turned into a messianic crisis." },
+  "Abulafia I: the wandering prophet": { k: "route", pts: [["Saragossa", 41.6, -0.9], ["Acre", 32.9, 35.1], ["Rome", 41.9, 12.5], ["Messina", 38.2, 15.6], ["Comino", 36.0, 14.3]], c: "Born in Saragossa in 1240, to Acre, to Rome to meet the pope, to Sicily, then exile on Comino." },
+  "Abulafia II: the intellect and prophecy": { k: "ladder", items: ["purify", "combine the letters", "the mind fills", "union with the Active Intellect"], c: "Prophetic Kabbalah as a ladder of the mind." },
+  "Abulafia III: the science of combination": { k: "grid", rows: ["יהוה", "הויה", "והיה", "היהו"], hi: [[0, 0], [1, 1], [2, 2], [3, 3]], c: "Permuting the letters of a name, one arrangement after another." },
+  "Abulafia IV: the circles and the 72 names": { k: "grid", rows: ["והו", "ילי", "סיט", "עלם", "מהש", "ללה", "אכא", "כהת"], hi: [[0, 0], [1, 0], [2, 0], [3, 0], [4, 0], [5, 0], [6, 0], [7, 0]], c: "The first 8 of the 72 three-letter names, from Exodus 14:19–21." },
+  "Abulafia V: his school": { k: "page", t: "Sha'arei Tzedek", by: "a student of Abulafia, 1295", nq: 1, q: "A disciple's account of learning the path of the names." },
+  "Kavvanot": { k: "letters", rtl: 1, l: "יאהדונהי", c: "YHVH and Adonai woven together: a classic kavvanah." },
+  "Welcoming the Sabbath": { k: "emblem", sym: "candles", c: "Lekha Dodi: 'Come, my beloved, to meet the bride', sung since Safed." },
+  "Midnight and Shavuot night": { k: "dial", items: [["midnight", 0], ["dawn", 90], ["noon", 180], ["dusk", 270]], c: "Tikkun Hatzot at midnight; on Shavuot night, study until dawn." },
+  "Counting the Omer": { k: "omer", c: "49 days from Passover to Shavuot: each week and each day joined to a sefirah." },
+  "Devekut and the Baal Shem Tov": { k: "union", a: "the soul", b: "God", m: "devekut" },
+  "Hitbodedut": { k: "breath", w: "hitbodedut", sub: "Rabbi Nahman: speaking to God alone, in your own words" },
+  "The Shiviti": { k: "page", t: "Shiviti", by: "Psalm 16:8", q: "I have set the LORD always before me." },
+  "Scholem and Idel": { k: "compare", a: "Gershom Scholem", ai: ["history and texts", "Major Trends, 1941"], b: "Moshe Idel", bi: ["experience and practice", "New Perspectives, 1988"] },
+  "Torah as the name of God": { k: "page", t: "Nahmanides", by: "introduction to his Torah commentary", nq: 1, q: "The whole Torah is made of the names of the Holy One." },
+  "The feminine in Kabbalah": { k: "tree", hi: ["B", "M"], labels: ["Binah: the upper mother", "Malkhut: the Shekhinah, the bride"] },
+  "Kabbalah in modern Judaism": { k: "timeline", ev: [["1772", "Hasidim and their opponents"], ["1921", "Rav Kook, chief rabbi"], ["1970s", "neo-Hasidism and Renewal"]], c: "Kabbalah in modern Jewish life." },
+  "Christian Cabala seen from the Jewish side": { k: "compare", a: "Jewish Kabbalah", ai: ["the commandments", "the Hebrew text", "a community"], b: "Christian Cabala", bi: ["proofs of the Trinity", "Latin translations", "humanist circles"] },
+  "Hermetic Qabalah: what changed": { k: "compare", a: "Kabbalah", ai: ["sefirot as divine life", "letters as creation"], b: "Hermetic Qabalah", bi: ["tarot on the paths", "planets for magic"] },
+  "Responsibility and the restrictions": { k: "emblem", sym: "scales", c: "The old cautions: a teacher, a grounded life, a mature mind." },
+  "Capstone: a year of the sefirot": { k: "tree", hi: ["K", "Ch", "B", "Ce", "G", "Ti", "N", "H", "Y", "M"], c: "The ten sefirot across a year of study." }
+},
+xcab: {
+  "What Christian Cabala is": { k: "union", a: "Jewish Kabbalah", b: "Christian theology", m: "Christian Cabala" },
+  "Before Pico: Christian Hebraism": { k: "timeline", ev: [["1263", "the Barcelona disputation"], ["1312", "Council of Vienne: chairs of Hebrew"], ["15th c.", "humanists learn Hebrew"]], c: "Christian interest in Hebrew came before Cabala." },
+  "Llull's Art": { k: "llull", c: "Llull's turning wheels: letters for God's attributes, combined by rotation." },
+  "Florence and the ancient theology": { k: "ladder", items: ["Zoroaster", "Hermes Trismegistus", "Orpheus", "Pythagoras", "Plato"], c: "Ficino's chain of 'ancient theologians'." },
+  "Pico I: the Oration and the 900 Theses": { k: "page", t: "Oration", by: "Pico della Mirandola, 1486", q: "We have made you neither of heaven nor of earth, neither mortal nor immortal." },
+  "Pico II: Mithridates' library": { k: "flow", items: ["Hebrew and Aramaic texts", "Flavius Mithridates translates", "Latin for Pico, 1486"], c: "Pico read Kabbalah through one translator's Latin." },
+  "Pico III: the Heptaplus": { k: "page", t: "Heptaplus", by: "Pico, 1489", nq: 1, q: "Seven readings of the first chapter of Genesis." },
+  "The Trinity in the supernal sefirot": { k: "tree", mode: "trinity", hi: ["K", "Ch", "B"], c: "Christian readers saw the Trinity in the top three sefirot." },
+  "Reuchlin I: the wonder-working word": { k: "emblem", sym: "pentagram", c: "Reuchlin, 1494: YHShVH, the Name with Shin added." },
+  "Reuchlin II: the art of the Cabala": { k: "page", t: "De arte cabalistica", by: "Reuchlin, 1517", nq: 1, q: "A dialogue between a Jew, a Muslim and a Pythagorean." },
+  "Reuchlin III: the battle over the books": { k: "timeline", ev: [["1509", "Pfefferkorn: burn Jewish books"], ["1510", "Reuchlin defends them"], ["1520", "Rome rules against him"]], c: "The first public fight over Jewish books in Germany." },
+  "Ricius and the Gates of Light": { k: "page", t: "Portae Lucis", by: "Paulus Ricius, 1516", nq: 1, q: "Gikatilla's Gates of Light in Latin." },
+  "Egidio da Viterbo and the Shekhinah": { k: "tree", hi: ["M"], labels: ["Egidio da Viterbo", "The Shekhinah, read as a figure of the Church"] },
+  "Giorgi's harmony of the world": { k: "rings", items: ["the Word", "angels", "the heavens", "the elements", "the human being"], c: "Giorgi, De harmonia mundi, 1525: a world tuned like a monochord." },
+  "Agrippa I: three worlds": { k: "ladder", items: ["Elemental world", "Celestial world", "Intellectual world"], c: "Agrippa's three books climb the three worlds." },
+  "Agrippa II: vanity and recantation": { k: "compare", a: "De occulta philosophia", ai: ["written 1510", "printed 1533"], b: "De vanitate", bi: ["printed 1530", "all sciences vain"] },
+  "Postel and the Sefer Yetzirah": { k: "page", t: "Liber Jezirah", by: "Guillaume Postel, Paris, 1552", nq: 1, q: "The first printed translation of the Book of Formation." },
+  "Dee's monad": { k: "emblem", sym: "monad", c: "The Monas Hieroglyphica, 1564." },
+  "Khunrath's rose": { k: "emblem", sym: "rose", c: "Khunrath, Amphitheatrum, 1609: Christ at the centre of the cabalistic rose." },
+  "Kircher's Tree": { k: "tree", mode: "flash", c: "Kircher, Oedipus Aegyptiacus (1652): the layout of the Tree the Golden Dawn later used." },
+  "Kabbala Denudata": { k: "page", t: "Kabbala Denudata", by: "Knorr von Rosenroth, 1677–84", nq: 1, q: "Zohar passages and Lurianic texts in Latin." },
+  "Adam Kadmon as Christ": { k: "body", c: "The sefirot on the human form." },
+  "The Lehrtafel": { k: "tree", labels: ["Bad Teinach, 1673", "A painted Tree of the sefirot", "Princess Antonia of Württemberg"] },
+  "Böhme and the Christian theosophers": { k: "timeline", ev: [["1612", "Böhme's Aurora"], ["1682", "Gichtel's edition"], ["18th c.", "Oetinger"]], c: "German theosophy." },
+  "Lévi: Cabala and the cards": { k: "page", t: "Dogme et rituel", by: "Éliphas Lévi, 1854–56", nq: 1, q: "The tarot as the key to the Kabbalah." },
+  "The Christian core of the Golden Dawn": { k: "emblem", sym: "cross", c: "The rose-cross: the crucified and risen at the centre." },
+  "Tomberg as heir": { k: "emblem", sym: "book", c: "Meditations on the Tarot: 22 letters to the 'unknown friend'." },
+  "An honest assessment": { k: "emblem", sym: "scales", c: "What it gave, and what it took." },
+  "Capstone: a psalm in four senses and ten names": { k: "ladder", items: ["literal", "allegorical", "moral", "anagogical"], c: "Four senses of Scripture, then the ten names." }
+},
+eno: {
+  "John Dee": { k: "timeline", ev: [["1527", "born in London"], ["1564", "Monas Hieroglyphica"], ["1582", "the angel sessions begin"], ["1608/9", "dies at Mortlake"]], c: "Mathematician, adviser to Elizabeth, collector of books." },
+  "Edward Kelley": { k: "timeline", ev: [["1555", "born"], ["1582", "meets Dee"], ["1597/8", "dies in Bohemia"]], c: "Dee's scryer." },
+  "How the sessions worked": { k: "emblem", sym: "mirror", c: "Kelley looked into a stone or mirror; Dee wrote down every word." },
+  "The Heptarchia": { k: "reuse", what: "sigillum", c: "The Sigillum Dei Aemeth, received in 1582." },
+  "Liber Loagaeth": { k: "grid", rows: ["ZILDAR", "ONGEPA", "MALPRG", "VRANSO", "LADIOE", "GEMNAR"], c: "Loagaeth's tables are 49 × 49 letters. This grid only illustrates the layout." },
+  "The language": { k: "page", t: "Enochian", nq: 1, q: "21 letters, written right to left: Un (A), Pa (B), Veh (C), Gal (D), Graph (E)…" },
+  "The Calls": { k: "page", t: "The First Call", by: "Dee's diaries, 1584", q: "Ol sonf vorsg, goho Iad Balt: I reign over you, saith the God of Justice." },
+  "The Great Table received": { k: "reuse", what: "great", c: "The four Watchtowers, with the Black Cross that joins them." },
+  "The Parts of the Earth": { k: "rings", items: ["30 Aethyrs", "91 Parts of the Earth", "a governor and sigil for each"], c: "The Aethyrs hold 91 regions of the world." },
+  "The European journey": { k: "route", pts: [["Mortlake", 51.47, -0.27], ["Kraków", 50.06, 19.94], ["Prague", 50.08, 14.43], ["Třeboň", 49.0, 14.77], ["Mortlake", 51.47, -0.27]], c: "1583–1589: Dee and Kelley at the courts of Central Europe." },
+  "The crisis of 1587": { k: "union", a: "Dee and Jane", b: "Kelley and Joan", m: "the 1587 command" },
+  "Dee's last years": { k: "timeline", ev: [["1589", "returns to a looted library"], ["1595", "Warden of Manchester"], ["1608/9", "dies poor at Mortlake"]] },
+  "How the papers survived": { k: "timeline", ev: [["1659", "Casaubon's True and Faithful Relation"], ["1662", "more papers found in a chest's hidden drawer"], ["1672", "Elias Ashmole acquires them"]], c: "Part of the record was nearly lost as kitchen paper." },
+  "The Golden Dawn's Enochian": { k: "reuse", what: "tablet", arg: "Air", c: "The Golden Dawn painted the Watchtowers in elemental colors." },
+  "Enochian chess": { k: "emblem", sym: "chess", c: "Four players on a board drawn from the tablets." },
+  "Pronunciation": { k: "compare", a: "Dee's notes", ai: ["spelled as received", "a few marginal hints"], b: "Golden Dawn", bi: ["vowels added", "'Zodacare' for ZODACAR"] },
+  "Crowley in the desert": { k: "emblem", sym: "desert", c: "Algeria, 1909: Crowley and Neuburg scry the 30 Aethyrs." },
+  "ZAX and Choronzon": { k: "reuse", what: "aethyrs", arg: 10, c: "ZAX, the tenth Aethyr: the Abyss." },
+  "Scrying, in depth": { k: "emblem", sym: "eye", c: "Attention held steady on an image." },
+  "Rowe and the modern systems": { k: "reuse", what: "tablet", arg: "Water", c: "Modern systems rebuilt from the Watchtowers." },
+  "Dee in his world": { k: "timeline", ev: [["1558", "Elizabeth crowned on a date Dee chose"], ["1570", "Preface to Euclid"], ["1577", "General and Rare Memorials"]], c: "A scholar at the centre of Tudor learning." },
+  "Enochian and Kabbalah": { k: "compare", a: "Kabbalah", ai: ["Hebrew letters", "sefirot", "names drawn from the Torah"], b: "Enochian", bi: ["its own alphabet", "tables of letters", "names given by the angels"] },
+  "Holding the practice wisely": { k: "emblem", sym: "scales", c: "Balance, grounding and ordinary life first." },
+  "The question of Kelley, again": { k: "compare", a: "Fraud?", ai: ["a past forger (by legend)", "alchemical boasts"], b: "Sincere?", bi: ["years of consistent sessions", "a complex language"] },
+  "Capstone: thirty days, thirty Aethyrs": { k: "reuse", what: "aethyrs", arg: 30, c: "From TEX, the 30th, inward to LIL, the 1st." }
+},
+xmys: {
+  "What Christian mysticism is": { k: "union", a: "the soul", b: "God", m: "union in love" },
+  "The mystics' Scripture": { k: "page", t: "Song of Songs", by: "1:2", q: "Let him kiss me with the kisses of his mouth." },
+  "Philo, Clement and Origen": { k: "timeline", ev: [["c. 20 BC–50 AD", "Philo"], ["c. 150–215", "Clement"], ["c. 185–253", "Origen"]], c: "Three Alexandrians who read Scripture for its hidden sense." },
+  "Origen's three books": { k: "triad", items: ["Proverbs: ethics", "Ecclesiastes: nature", "Song of Songs: union"], c: "Origen's order of Solomon's three books." },
+  "Gregory of Nyssa": { k: "ladder", items: ["light: the burning bush", "cloud", "darkness: Sinai"], c: "In Gregory's Life of Moses, the ascent goes from light into darkness." },
+  "Augustine at Ostia": { k: "page", t: "Confessions IX", by: "Augustine and Monica, 387", nq: 1, q: "Rising step by step beyond the senses, they touched it for an instant." },
+  "The three ways": { k: "ladder", items: ["Purgation", "Illumination", "Union"], c: "The classic three stages." },
+  "Kataphatic and apophatic": { k: "compare", a: "Kataphatic", ai: ["God is light", "God is good", "speaks in images"], b: "Apophatic", bi: ["beyond light", "beyond good", "unsays the images"] },
+  "Lectio divina": { k: "cycle", items: [["Lectio: read"], ["Meditatio: ponder"], ["Oratio: respond"], ["Contemplatio: rest"]], c: "Guigo II's four rungs, c. 1150." },
+  "The Jesus Prayer": { k: "page", t: "The Jesus Prayer", by: "the hesychast tradition", q: "Lord Jesus Christ, Son of God, have mercy on me." },
+  "Liturgy and sacrament": { k: "emblem", sym: "chalice", c: "In this tradition, the shared mystery comes before private experience." },
+  "Discernment of spirits": { k: "emblem", sym: "scales", c: "Weighing inner movements by where they lead." },
+  "Antony and the desert": { k: "emblem", sym: "desert", c: "Antony, c. 270: into the Egyptian desert." },
+  "Evagrius and the eight thoughts": { k: "cycle", items: [["gluttony"], ["lust"], ["avarice"], ["sadness"], ["anger"], ["acedia"], ["vainglory"], ["pride"]], center: "the eight thoughts", c: "Evagrius's list, later the seven deadly sins." },
+  "Cassian and the West": { k: "route", pts: [["Bethlehem", 31.7, 35.2], ["Scetis", 30.3, 30.3], ["Constantinople", 41.0, 29.0], ["Marseille", 43.3, 5.4]], c: "Cassian carried the desert's teaching to Gaul." },
+  "Pseudo-Dionysius": { k: "rings", items: ["Seraphim", "Cherubim", "Thrones", "Dominions", "Virtues", "Powers", "Principalities", "Archangels", "Angels"], c: "The nine choirs of the Celestial Hierarchy." },
+  "Maximus and theosis": { k: "union", a: "human", b: "divine", m: "theosis" },
+  "Benedict and the Office": { k: "dial", items: [["Vigils", 30], ["Lauds", 75], ["Prime", 90], ["Terce", 135], ["Sext", 180], ["None", 225], ["Vespers", 270], ["Compline", 315]], c: "The day's hours of prayer around a 24-hour clock (midnight at the top)." },
+  "Icons": { k: "emblem", sym: "icon", c: "An icon as a window." },
+  "The hesychasts and the Philokalia": { k: "timeline", ev: [["4th–15th c.", "the texts written"], ["1782", "the Philokalia, printed in Venice"], ["1793", "Paisius's Slavonic edition"]] },
+  "Symeon the New Theologian": { k: "emblem", sym: "sun", c: "Symeon (949–1022): the vision of divine light." },
+  "Palamas and the uncreated light": { k: "emblem", sym: "tabor", c: "The light of Tabor: God's energies, not his essence." },
+  "The year as mystery": { k: "cycle", items: [["Nativity"], ["Theophany"], ["Pascha"], ["Pentecost"], ["Transfiguration"], ["Dormition"]], center: "the feasts", c: "The church year as a cycle of feasts." },
+  "The Ladder of John Climacus": { k: "ladder", items: ["1 renunciation", "4 obedience", "7 mourning", "8 meekness", "22 vainglory", "27 stillness", "30 faith, hope, love"], c: "Thirty rungs, one for each year of Christ's hidden life (a few shown)." },
+  "Bernard of Clairvaux": { k: "ladder", items: ["love of self for self", "love of God for self", "love of God for God", "love of self for God"], c: "Bernard's four degrees of love." },
+  "The Victorines": { k: "emblem", sym: "ark", c: "Hugh of St Victor's Noah's Ark: the soul as an ark." },
+  "Hildegard of Bingen": { k: "timeline", ev: [["1098", "born"], ["1141", "the great vision"], ["1151", "Scivias finished"], ["2012", "Doctor of the Church"]] },
+  "Francis of Assisi": { k: "timeline", ev: [["1205", "San Damiano: 'Repair my house'"], ["1224", "La Verna: the stigmata"], ["1225", "the Canticle of the Sun"]] },
+  "Bonaventure's journey": { k: "ladder", items: ["through the senses", "in the senses", "through the mind", "in the mind", "in the name Being", "in the name Good"], c: "The six wings of the Itinerarium." },
+  "The Beguines": { k: "route", pts: [["Liège", 50.6, 5.6], ["Antwerp", 51.2, 4.4], ["Magdeburg", 52.1, 11.6], ["Paris", 48.86, 2.35]], c: "Women's communities of the Low Countries and Germany." },
+  "Meister Eckhart": { k: "emblem", sym: "desert", c: "The 'desert of the Godhead' and the ground of the soul." },
+  "Tauler, Suso and the Theologia Germanica": { k: "timeline", ev: [["1361", "Tauler dies"], ["1366", "Suso dies"], ["1516", "Luther prints the Theologia Deutsch"]] },
+  "Ruusbroec": { k: "ladder", items: ["the active life", "the interior life", "the contemplative life"], c: "The three books of The Spiritual Espousals." },
+  "The Cloud of Unknowing": { k: "emblem", sym: "cloud" },
+  "Julian of Norwich": { k: "emblem", sym: "hazelnut" },
+  "Catherine of Siena": { k: "emblem", sym: "bridge", c: "The Dialogue's bridge: Christ himself, crossed in three steps." },
+  "The Imitation of Christ": { k: "page", t: "The Imitation of Christ", by: "Thomas à Kempis, c. 1418–27", q: "I would rather feel compunction than know its definition." },
+  "Ignatius and the Exercises": { k: "flow", items: ["Week 1: sin and mercy", "Week 2: the life of Christ", "Week 3: the Passion", "Week 4: the Resurrection"], c: "The four 'weeks' of the Spiritual Exercises." },
+  "Teresa's Interior Castle": { k: "emblem", sym: "castle", c: "Seven dwelling places, with God at the centre." },
+  "John of the Cross": { k: "compare", a: "Night of sense", ai: ["the senses quieted", "for beginners"], b: "Night of spirit", bi: ["the mind emptied", "for the advanced"] },
+  "De Sales and Brother Lawrence": { k: "compare", a: "Francis de Sales", ai: ["Introduction to the Devout Life, 1609", "holiness for lay people"], b: "Brother Lawrence", bi: ["the monastery kitchen", "the practice of the presence"] },
+  "Protestant mystics": { k: "timeline", ev: [["1612", "Böhme's Aurora"], ["1690s", "Pietism"], ["1738", "Wesley's heart 'strangely warmed'"]] },
+  "The Quietist crisis": { k: "timeline", ev: [["1675", "Molinos's Spiritual Guide"], ["1687", "Molinos condemned"], ["1699", "Fénelon condemned"]] },
+  "The way of a pilgrim": { k: "route", pts: [["Kyiv", 50.45, 30.5], ["Irkutsk", 52.3, 104.3]], c: "A Russian pilgrim walks toward Siberia with the Philokalia in his bag." },
+  "The 20th century": { k: "timeline", ev: [["1942", "Simone Weil's notebooks"], ["1948", "Merton's Seven Storey Mountain"], ["1955", "Teilhard dies; his works appear"]] },
+  "Centering prayer and Christian meditation": { k: "breath", w: "one sacred word", sub: "Keating's centering prayer and Main's 'Maranatha' rest on a single word" },
+  "Studying mysticism": { k: "page", t: "The Varieties of Religious Experience", by: "William James, 1902", nq: 1, q: "Four marks: ineffable, noetic, transient, passive." },
+  "Capstone: a rule of life": { k: "cycle", items: [["prayer"], ["work"], ["study"], ["rest"]], center: "a rule of life", c: "A simple rule, in the Benedictine spirit." }
+}
+};
+
 const CUR = {};
 const CUR_ORDER = ["astro", "tarot", "alch", "kab", "xcab", "eno", "xmys"];
 const LVL_NAMES = ["Foundations", "Intermediate", "Advanced", "Mastery"];
@@ -3285,7 +3891,7 @@ function viewUnit(li, ui) {
   const next = ui < L.units.length - 1 ? [li, ui + 1] : li < S.levels.length - 1 ? [li + 1, 0] : null;
   const nextLocked = next && next[0] !== li && !levelOpen(lsec, next[0]);
   if (!open) return `<span class="label">${esc(S.name)} · Level ${["I", "II", "III", "IV"][li]} · unit ${n} of ${N}</span><h2>${esc(u.t)}</h2><div class="box try"><h4>Locked</h4><p>This unit belongs to a level that opens after the previous level's readings.</p><p><button type="button" class="btn rip" data-lvlov="${li - 1}">See the readings</button> <button type="button" class="btn rip" data-lpeek="${li}">Preview anyway</button></p></div>`;
-  return `<span class="label">${esc(S.name)} · Level ${["I", "II", "III", "IV"][li]}, ${LVL_NAMES[li]} · unit ${n} of ${N}</span><h2>${esc(u.t)}</h2>${u.lead ? `<p class="lead">${u.lead}</p>` : ""}${u.fig ? u.fig() : ""}${u.body}
+  return `<span class="label">${esc(S.name)} · Level ${["I", "II", "III", "IV"][li]}, ${LVL_NAMES[li]} · unit ${n} of ${N}</span><h2>${esc(u.t)}</h2>${u.lead ? `<p class="lead">${u.lead}</p>` : ""}${u.fig ? u.fig() : figFor(lsec, u.t)}${u.body}
     ${u.nug ? `<div class="box nugget"><h4>${g("✦")} Gold nugget</h4><p>${u.nug}</p></div>` : ""}
     ${u.tarot ? tbox("tarot", "In the tarot", `<p>${u.tarot}</p>`) : ""}${u.alc ? tbox("alc", "In alchemy", `<p>${u.alc}</p>`) : ""}${u.tryit ? tbox("try", "Try it", `<p>${u.tryit}</p>`) : ""}${u.read ? tbox("tarot", "Read now", `<p>${u.read}</p>`) : ""}
     ${u.qs.map((c, qi) => `<div class="check box" style="background:var(--panel-2)"><h4>Check yourself</h4><p>${esc(c.question)}</p><div class="opts">${c.opts.map((o, i) => `<button type="button" class="opt" data-lopt="${qi}:${i}">${esc(o)}</button>`).join("")}</div><p id="chk-out-${qi}" class="muted"></p></div>`).join("")}
@@ -6161,7 +6767,7 @@ start();
 
 <script>
 (function(){
-  var BUILD="20261016104911";
+  var BUILD="20261016124922";
   if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js").catch(function(){}); }
   function check(){ fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.json();}).then(function(v){ if(v && v.build && v.build!==BUILD) location.reload(); }).catch(function(){}); }
   setInterval(check, 20*60*1000);
