@@ -1,5 +1,5 @@
 // Daily Opus service worker: network first (so updates arrive), cache as offline fallback.
-const CACHE = "daily-opus-20261016192433";
+const CACHE = "daily-opus-20261019104309";
 self.addEventListener("install", e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then(c => c.addAll(["./", "index.html", "manifest.webmanifest", "icon-192.png", "vendor/astronomy.browser.min.js"]).catch(() => {}))); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener("fetch", e => {
