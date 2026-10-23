@@ -593,6 +593,7 @@ const store = {
   get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 };
+try { if (location.hash.startsWith("#import=")) { syncImport(decodeURIComponent(location.hash.slice(8))); if (history.replaceState) history.replaceState(null, "", location.pathname + location.search); } } catch (e) {}
 const RM = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const GF = 'font-family="Noto Sans Symbols 2, Segoe UI Symbol, Apple Symbols, sans-serif"';
 
@@ -7340,6 +7341,59 @@ function viewExamResult(R) {
     ${R.missed.length ? `<div class="why"><span class="label">${R.pass ? "Still worth reviewing" : "Review these topics"}</span><ul>${R.missed.map(t => `<li>${esc(t)}</li>`).join("")}</ul><p class="muted">The answers aren't shown, so the next attempt still tests what you understand.</p></div>` : ""}
     <div class="chapnav"><span></span><button type="button" class="btn primary rip" data-lvlov="${R.li}">Back to the level ›</button></div>`;
 }
+
+/* =================== LEARN: moving progress between devices and apps =================== */
+// Each place Daily Opus runs (claude.ai, a browser, the installed app, Lively) keeps its own storage.
+// A progress code carries everything saved under "opus." from one to another; importing merges, never erases.
+function syncExport() {
+  const out = {}; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith("opus.")) out[k] = localStorage.getItem(k); } } catch (e) {}
+  return "OPUS1:" + btoa(unescape(encodeURIComponent(JSON.stringify({ at: Date.now(), d: out }))));
+}
+function syncSummary(d) {
+  const P = k => { try { return JSON.parse(d[k] || "null"); } catch (e) { return null; } };
+  const u = (P("opus.ldone") || []).length, b = (P("opus.lread") || []).length, x = Object.values(P("opus.lexam") || {}).filter(r => r && r.passed).length;
+  return `${u} unit${u === 1 ? "" : "s"} finished, ${b} reading${b === 1 ? "" : "s"} ticked, ${x} exam${x === 1 ? "" : "s"} passed`;
+}
+function syncImport(code) {
+  code = String(code || "").trim().replace(/\s+/g, "");
+  if (!code.startsWith("OPUS1:")) throw new Error("That doesn't look like a Daily Opus progress code. It should start with OPUS1:");
+  const data = JSON.parse(decodeURIComponent(escape(atob(code.slice(6))))).d || {};
+  const get = k => { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch (e) { return null; } };
+  const parse = v => { try { return JSON.parse(v); } catch (e) { return null; } };
+  Object.keys(data).forEach(k => {
+    const inc = parse(data[k]), cur = get(k); let val;
+    if (["opus.ldone", "opus.lread", "opus.lchk", "opus.lpeek"].includes(k)) val = [...new Set([...(cur || []), ...(inc || [])])];
+    else if (k === "opus.lopenAt") { val = Object.assign({}, inc || {}); Object.entries(cur || {}).forEach(([a, t]) => { val[a] = val[a] ? Math.min(val[a], t) : t; }); }
+    else if (k === "opus.lexam") {
+      val = {}; new Set([...Object.keys(cur || {}), ...Object.keys(inc || {})]).forEach(a => {
+        const A = (cur || {})[a] || {}, B = (inc || {})[a] || {}, seen = new Set(), tries = [...(A.tries || []), ...(B.tries || [])].filter(t => !seen.has(t.at) && seen.add(t.at)).sort((x, y) => x.at - y.at);
+        const ps = [A.passed, B.passed].filter(Boolean); val[a] = { tries }; if (ps.length) val[a].passed = Math.min(...ps); });
+    } else if (cur === null || cur === undefined) val = inc; else return;
+    try { localStorage.setItem(k, JSON.stringify(val)); } catch (e) { throw new Error("This app isn't allowing saved data, so the progress can't be stored here."); }
+  });
+  return syncSummary(data);
+}
+function syncBoxHTML() {
+  return `<div class="box exam-box" id="lsync"><h4>Move your progress</h4>
+    <p>Each place you open Daily Opus keeps its own progress: this page on claude.ai, a browser, the installed app and the Lively wallpaper. To carry it over, copy the code here, then paste it into the other place and press Import. Importing adds to what's there; it never erases anything.</p>
+    <p><button type="button" class="btn rip" data-lsync="copy">Copy my progress code</button> <button type="button" class="btn rip" data-lsync="link">Copy a link with my progress</button> <span class="muted" id="lsync-msg"></span></p>
+    <p class="muted">For the Lively wallpaper, which can't take pasted text: copy the link, and set it as the wallpaper's web address in Lively. The wallpaper then loads with your progress.</p>
+    <textarea id="lsync-code" rows="3" spellcheck="false" style="width:100%;font-family:IBM Plex Mono,monospace;font-size:.75rem;background:var(--panel-2);color:var(--parchment);border:1px solid var(--rule);border-radius:8px;padding:8px" placeholder="Paste a progress code here, then press Import"></textarea>
+    <p><button type="button" class="btn primary rip" data-lsync="import">Import progress</button></p></div>`;
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-lsync]"); if (!b) return;
+  const ta = document.getElementById("lsync-code"), msg = document.getElementById("lsync-msg");
+  if (b.dataset.lsync === "copy" || b.dataset.lsync === "link") {
+    const c = b.dataset.lsync === "link" ? "https://sacenteno99.github.io/daily-opus/#import=" + encodeURIComponent(syncExport()) : syncExport(); ta.value = c; ta.focus(); ta.select();
+    const done = ok => { msg.textContent = ok ? "Copied. Now paste it into the other app." : "Select the code in the box and copy it."; };
+    try { navigator.clipboard.writeText(c).then(() => done(true), () => { try { done(document.execCommand("copy")); } catch (er) { done(false); } }); } catch (er) { try { done(document.execCommand("copy")); } catch (er2) { done(false); } }
+  } else {
+    try { const sum = syncImport(ta.value); msg.textContent = ""; ta.value = ""; alertBox(`Imported: ${sum}. Reloading…`); setTimeout(() => location.reload(), 300); }
+    catch (er) { alertBox(er.message); }
+  }
+  function alertBox(t) { let p = document.getElementById("lsync-out"); if (!p) { p = document.createElement("p"); p.id = "lsync-out"; document.getElementById("lsync").appendChild(p); } p.textContent = t; }
+});
 // ---- the study path: every level of every course, in dependency order
 function viewPath() {
   const { P, O } = lschedule(), memo = {}, now = Date.now(), all = [];
@@ -7368,7 +7422,7 @@ function viewPath() {
     <div class="why"><span class="label">The rules</span><p>Each level opens when its prerequisites are passed. Its exam unlocks only when you have:</p><ul><li>finished every unit, by answering all its checks correctly;</li><li>ticked every required reading;</li><li>studied for a minimum time from the day the level opened: 2 weeks for Level I, 3 for Level II, 4 each for Levels III and IV.</li></ul><p>To pass you need ${Math.round(LPASS * 100)}%. If you don't, you can retake it the next day with fresh questions.</p></div>
     <div class="figure">${map}<p class="cap">Courses run across the top, levels downward. Dashed arrows are prerequisites from another course; green ones are passed. Tap a level to open it.</p></div>
     <p class="muted">If you study steadily and pass each exam on the first try, studying several courses in parallel, the earliest you could finish everything is <b>${fmtD(end)}</b>. The dates below are earliest-possible dates, not deadlines.</p>
-    ${phases}`;
+    ${phases}${syncBoxHTML()}`;
 }
 
 function viewHome() {
@@ -7376,7 +7430,7 @@ function viewHome() {
   return `<span class="label">The course · ${secCount(lsec)} units in four levels</span><h2>${esc(S.name)}</h2><p class="lead">${S.intro}</p>
     ${S.method ? `<div class="why"><span class="label">How this course works</span><p>${S.method}</p></div>` : ""}
     <div class="lvl-grid">${S.levels.map((L, li) => { const open = levelOpen(lsec, li); return `<button type="button" class="tile rip lvl-card${open ? "" : " locked"}" data-lvlov="${li}" style="text-align:left;cursor:pointer"><span class="label">Level ${["I", "II", "III", "IV"][li]} · ${LVL_NAMES[li]}${examPassed(lsec, li) ? " · ✓ passed" : open ? "" : " · locked"}</span><h3>${esc(L.title)}</h3><p class="muted">${L.units.length} units · ${L.books.length} required readings · exam</p>${open ? "" : `<p class="muted" style="font-size:.85rem">Needs: ${esc(lvlReqs(lsec, li).filter(([a, b]) => !examPassed(a, b)).map(([a, b]) => lvlName(a, b)).join(", "))}</p>`}<span class="sp-bar"><span style="width:${Math.round(100 * lvlDone(lsec, li) / L.units.length)}%"></span></span></button>`; }).join("")}</div>
-    <p class="muted">Each level has units, required readings and a demanding exam. A level opens only when you've passed the exam before it, and the exams of any other course it builds on. <button type="button" class="linkish" data-lpath="1">See the full study path</button>.</p>
+    <p class="muted">Each level has units, required readings and a demanding exam. A level opens only when you've passed the exam before it, and the exams of any other course it builds on. <button type="button" class="linkish" data-lpath="1">See the full study path</button>. Studying in more than one place? Use <button type="button" class="linkish" data-lpath="1">Move your progress</button> on the study path page to carry it across.</p>
     <div class="chapnav"><span></span><button type="button" class="btn primary rip" data-${cur ? `u="${cur.li}:${cur.ui}"` : `lvlov="0"`}>${cur ? `Continue: ${esc(uTitle(uRaw(lsec, cur.li, cur.ui)))}` : "Begin Level I"} ›</button></div>`;
 }
 function viewLevel(li) {
@@ -10603,7 +10657,7 @@ start();
 
 <script>
 (function(){
-  var BUILD="20261019104309";
+  var BUILD="20261023094510";
   if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js").catch(function(){}); }
   function check(){ fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.json();}).then(function(v){ if(v && v.build && v.build!==BUILD) location.reload(); }).catch(function(){}); }
   setInterval(check, 20*60*1000);
