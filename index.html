@@ -437,6 +437,39 @@ ul.reqs .linkish { text-align: left; }
 /* v5: prior knowledge */
 .tile.prior{opacity:.82}
 .lmcell.prior{border-style:dashed}
+/* v5: the sticky route bar */
+#lsecs { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 70px); z-index: 12; background: var(--ground); }
+.lbar { padding: 8px 0 10px; border-bottom: 1px solid var(--rule); display: grid; gap: 8px; }
+.lbar .lnav { margin-bottom: 0; }
+.lroute { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.5fr) minmax(0,1fr); gap: 6px; align-items: stretch; }
+.rb { display: flex; flex-direction: column; justify-content: center; gap: 1px; min-width: 0; text-align: left; padding: 7px 11px; border-radius: 11px; border: 1px solid var(--line); background: var(--panel-2); color: var(--muted); cursor: pointer; font: inherit; }
+.rb b { color: var(--parchment); font-size: .92rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rb .rb-t { font-size: .76rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rb.mid { text-align: center; align-items: center; border-color: var(--gold-soft); background: var(--panel-3); }
+.rb.mid b { color: var(--gold-soft); white-space: normal; }
+.rb:not(.empty):hover { border-color: var(--gold); }
+.rb.empty { background: transparent; border-color: transparent; cursor: default; }
+.lroute > :last-child:not(.empty) { text-align: right; align-items: flex-end; }
+.lsecs-grid { display: none; }
+.lsecs-grid.open { display: block; margin: 10px 0 0; padding-bottom: 12px; max-height: 52vh; overflow-y: auto; }
+.toc { top: calc(env(safe-area-inset-top, 0px) + 78px + var(--lbarh, 0px)) !important; max-height: calc(100vh - 120px - var(--lbarh, 0px)) !important; }
+@media (max-width: 900px) { .toc { top: auto !important; max-height: none !important; } }
+@media (max-width: 600px) {
+  #lsecs { top: calc(env(safe-area-inset-top, 0px) + 62px); }
+  .lbar { padding: 6px 0 7px; gap: 6px; }
+  .lbar .lnav { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .lbar .lnav::-webkit-scrollbar { display: none; }
+  .lbar .lnav .btn { white-space: nowrap; flex: none; }
+  .rb.mid { padding: 4px 8px; }
+  .rb.mid b { font-size: .8rem; }
+  .rb.mid .rb-t { font-size: .72rem; }
+  .lroute { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+  .rb.mid { grid-column: 1 / -1; order: -1; padding: 5px 8px; }
+  .rb .rb-t { display: none; }
+  .rb.mid .rb-t { display: block; }
+  .lbar .lnav { gap: 6px; }
+  .lbar .lnav .btn { padding: 5px 9px; font-size: .78rem; }
+}
 </style>
 
 <div class="app">
@@ -7209,12 +7242,20 @@ const PRIORNOTE = "Prerequisites exist to prevent misunderstanding, not to make 
 const MINRULE = "The reading named for each work is the <b>minimum</b> for this level, never a limit. You are always free, and warmly encouraged, to read on through the whole work when it interests you: finishing the whole work also satisfies the assigned part, and nothing in the school ever waits on reading beyond the minimum.";
 const lexam = store.get("opus.lexam") || {}, lxs = store.get("opus.lxs") || {}, ltask = store.get("opus.ltask") || {}, lrefl = store.get("opus.lrefl") || {};
 let libRole = "all", libQ = "", libUnread = false, libFull = false;
+let lsecsOpen = !!store.get("opus.lsecs");
 let lexCur = store.get("opus.lexcur2") || null, lexMsg = "", SAMPLE, lgrading = null, lmsg = {};
 const chByTitle = t => CH.find(c => c.t === t);
 const DAY = 864e5, ldayKey = t => { const d = new Date(t); return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(); };
 const fmtD = t => new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric", year: new Date(t).getFullYear() !== new Date().getFullYear() ? "numeric" : undefined });
 function uTitle(raw) { return typeof raw[0] === "string" && raw[0].startsWith("ref:") ? raw[0].slice(4) : raw[0]; }
 function lsave() { store.set("opus.lsec", lsec); store.set("opus.lpos2", lpos); store.set("opus.lview2", lview); store.set("opus.lcur", lcur); }
+// which level the reader is inside, whatever the view
+function curLevelG() {
+  const T = l3();
+  if (lview === "unit") { const k = lpos[lsec]; return (k && (T.ULV[k] || T.UPR[k])) || null; }
+  if (lview === "lvl" || lview === "qe" || lview === "prac") return lcur && T.LV[lcur] ? lcur : null;
+  return null;
+}
 
 /* ---- building the runtime from PLAN ---- */
 let L3 = null;
@@ -7439,11 +7480,36 @@ function bibHTML(r) {
 /* ---- views ---- */
 function groupsOf() { const G = []; COURSE_ORDER.forEach(c => { const gname = PLAN[c].group; let x = G.find(y => y[0] === gname); if (!x) G.push(x = [gname, []]); x[1].push(c); }); return G; }
 function cprog(c) { const Ls = PLAN[c].levels; return Ls.filter(L => lcomplete(L.gid)).length / Ls.length; }
+const rbName = L => (L.isQE ? L.t.replace(/:.*$/, "") : L.name);
+function stageIdx(g) { for (let i = 0; i < ROUTE.length; i++) if (ROUTE[i][1].includes(g)) return i; return -1; }
+function routeStrip() {
+  const flat = routeFlat(), here = curLevelG(), nxt = nextOnRoute();
+  const i = here ? flat.indexOf(here) : -1;
+  const btn = (g, dir) => { if (!g) return `<span class="rb empty"></span>`; const L = LVL(g); if (!L) return `<span class="rb empty"></span>`;
+    return `<button type="button" class="rb rip" data-lgo="${g}" title="${esc(L.isQE ? L.t : fullName(L))}">${dir < 0 ? "‹ " : ""}<b>${esc(rbName(L))}</b><span class="rb-t">${esc(L.isQE ? "" : L.t)}</span>${dir > 0 ? " ›" : ""}</button>`; };
+  if (i < 0) {
+    const L = here && LVL(here);
+    return `<div class="lroute off">${L ? `<span class="rb empty"><b>${esc(rbName(L))}</b><span class="rb-t">beside the route</span></span>` : `<span class="rb empty"></span>`}
+      <button type="button" class="rb mid rip" data-lpath="1"><b>The route</b><span class="rb-t">open it</span></button>
+      ${btn(nxt, 1)}</div>`;
+  }
+  const si = stageIdx(here), st = ROUTE[si], pos = st[1].indexOf(here) + 1;
+  return `<div class="lroute">${btn(i > 0 ? flat[i - 1] : null, -1)}
+    <button type="button" class="rb mid rip" data-lpath="1" title="Open the route"><b>Stage ${si + 1} · step ${pos} of ${st[1].length}</b><span class="rb-t">${esc(st[0])} · ${i + 1} of ${flat.length} on the route</span></button>
+    ${btn(i < flat.length - 1 ? flat[i + 1] : null, 1)}</div>`;
+}
 function secPicker() {
   const all = Object.values(l3().LV).filter(L => !L.isP), done = all.filter(L => lcomplete(L.gid)).length;
-  return `<div class="lnav"><button type="button" class="btn rip${lview === "path" ? " primary" : ""}" data-lpath="1">❖ Your path · ${done}/${all.length}</button><button type="button" class="btn rip${lview === "lib" ? " primary" : ""}" data-llib="1">❧ Library</button><button type="button" class="btn rip${lview === "era" ? " primary" : ""}" data-lera="1">⧗ By era</button></div>
-    ${groupsOf().map(([gn, cs]) => `<div class="lgroup"><span class="label">${esc(gn)}</span><div class="secpick" role="group" aria-label="${esc(gn)}">${cs.map(c => `<button type="button" class="rip" data-lsec="${c}" aria-pressed="${c === lsec && !["path", "era", "qe", "lib"].includes(lview)}"><span class="g">${g(PLAN[c].glyph)}</span><span>${esc(PLAN[c].short)}</span><span class="sp-bar"><span style="width:${Math.round(100 * cprog(c))}%"></span></span></button>`).join("")}</div></div>`).join("")}`;
+  const on = v => (lview === v ? " primary" : "");
+  return `<div class="lbar"><div class="lnav">
+      <button type="button" class="btn rip${on("path")}" data-lpath="1">❖ Route · ${done}/${all.length}</button>
+      <button type="button" class="btn rip${on("lib")}" data-llib="1">❧ Library</button>
+      <button type="button" class="btn rip${on("era")}" data-lera="1">⧗ Era</button>
+      <button type="button" class="btn rip${lsecsOpen ? " primary" : ""}" data-lsecs="1" aria-expanded="${lsecsOpen}">☰ Courses</button>
+    </div>${routeStrip()}</div>
+    <div class="lsecs-grid${lsecsOpen ? " open" : ""}">${groupsOf().map(([gn, cs]) => `<div class="lgroup"><span class="label">${esc(gn)}</span><div class="secpick" role="group" aria-label="${esc(gn)}">${cs.map(c => `<button type="button" class="rip" data-lsec="${c}" aria-pressed="${c === lsec && !["path", "era", "qe", "lib"].includes(lview)}"><span class="g">${g(PLAN[c].glyph)}</span><span>${esc(PLAN[c].short)}</span><span class="sp-bar"><span style="width:${Math.round(100 * cprog(c))}%"></span></span></button>`).join("")}</div></div>`).join("")}</div>`;
 }
+function fitBar() { try { const b = $("lsecs"); if (b) document.documentElement.style.setProperty("--lbarh", b.offsetHeight + "px"); } catch (e) {} }
 const optLabel = L => (L.isQE ? "Checkpoint" : L.opt === "ref" ? "Refresher" : L.opt === "spec" ? "Specialist" : L.opt === "rec" ? "Elective" : routeOf(L.gid) ? "On the route" : "Elective");
 function routeOf(g) { for (let i = 0; i < ROUTE.length; i++) if (ROUTE[i][1].includes(g)) return i + 1; return 0; }
 const routeFlat = () => ROUTE.flatMap(r => r[1]);
@@ -7486,13 +7552,21 @@ function viewLevel(g) {
     <div class="stack-s"><h3>Units</h3><ol class="unit-list" start="${unitNumIn(L.c, L.u[0])}">${L.u.map(k => `<li>${open ? `<button type="button" class="linkish" data-u="${esc(k)}">${esc(uo(k).t)}</button>` : `<span class="muted">${esc(uo(k).t)}</span>`}${udone(k) ? ' <span style="color:#8fc39d">✓</span>' : ""}</li>`).join("")}</ol></div>`}
     ${quizBoxHTML(g)}${taskBoxHTML(g)}
     ${!L.isQE && L.i === PLAN[L.c].levels.length - 1 ? `<p class="muted">This is the last level of the course. When you finish it, there is an optional <button type="button" class="linkish" data-lhome="1" data-lrefl="1">reflection space</button> on the course page.</p>` : ""}
-    <div class="chapnav">${L.isQE ? `<button type="button" class="btn rip" data-lpath="1">‹ Your path</button>` : `<button type="button" class="btn rip" data-lhome="1">‹ Course overview</button>`}${!L.isQE && open && L.u.length ? `<button type="button" class="btn primary rip" data-u="${esc(L.u[0])}">Start: ${esc(uo(L.u[0]).t)} ›</button>` : `<button type="button" class="btn primary rip" data-lpath="1">Your path ›</button>`}</div>`;
+    <div class="chapnav">${L.isQE ? `<button type="button" class="btn rip" data-lpath="1">‹ The route</button>` : `<button type="button" class="btn rip" data-lhome="1">‹ Course overview</button>`}${nextInLevel(g)}</div>`;
 }
 function priorBoxHTML(g) {
   const L = LVL(g); if (L.isP) return "";
   if (lprior.has(g)) return `<div class="box nugget stack-s" id="lprior"><h4>✓ Satisfied by prior knowledge</h4><p>You have marked this level as material you already know. It counts in full wherever it is needed, and everything in it stays here as a refresher: read any unit, tick any reading, and take the quiz if you ever want to.</p><p><button type="button" class="btn rip" data-lprior="${g}">I'd rather work through it</button></p></div>`;
   if (lcomplete(g)) return `<div class="box nugget"><h4>✓ Complete</h4></div>`;
   return `<div class="box stack-s" id="lprior"><h4>${lready(g) ? "Open" : "Open, though some ground is usually taken first"}</h4><p class="muted">${PRIORNOTE}</p><p><button type="button" class="btn rip" data-lprior="${g}">I already know this: mark it satisfied</button></p></div>`;
+}
+// the forward button at the foot of a level: the next unfinished unit, else the next step on the route
+function nextInLevel(g) {
+  const L = LVL(g), u = L.u && L.u.find(k => !udone(k));
+  if (u && !L.isQE) return `<button type="button" class="btn primary rip" data-u="${esc(u)}">${L.u.some(udone) ? "Continue" : "Start"}: ${esc(uo(u).t)} ›</button>`;
+  const flat = routeFlat(), i = flat.indexOf(g), n = i >= 0 && i < flat.length - 1 ? flat[i + 1] : nextOnRoute();
+  const N = n && LVL(n); if (!N) return `<button type="button" class="btn primary rip" data-lpath="1">The route ›</button>`;
+  return `<button type="button" class="btn primary rip" data-lgo="${n}">Next on the route: ${esc(rbName(N))} ›</button>`;
 }
 function viewPractice(g) {
   const M = LVL(g), open = lopenG(g);
@@ -7690,7 +7764,7 @@ function renderChapter(scroll) {
   $("lsecs").innerHTML = secPicker();
   const html = lview === "path" ? viewPath() : lview === "lib" ? viewLib() : lview === "era" ? viewEra() : lview === "exam" ? viewExam() : lview === "examres" ? viewExamResult(lexRes) : lview === "unit" ? viewUnit(lpos[lsec]) : (lview === "lvl" || lview === "qe" || lview === "prac") ? viewLevel(lcur) : viewHome();
   document.getElementById("p-learn").classList.toggle("lwide", ["path", "era", "qe", "exam", "examres", "lib"].includes(lview) || (lview === "lvl" && LVL(lcur) && LVL(lcur).isQE));
-  swap($("chapter"), html);
+  swap($("chapter"), html); fitBar();
   if (lview === "unit") { const u = uo(lpos[lsec]), g0 = T.ULV[lpos[lsec]] || T.UPR[lpos[lsec]]; if (u.run && lopenG(g0)) u.run($("chapter")); }
   if (scroll && $("chapter").scrollIntoView) $("chapter").scrollIntoView({ behavior: RM ? "auto" : "smooth", block: "start" });
 }
@@ -7698,9 +7772,10 @@ function lgoLevel(g) { const L = LVL(g); if (!L) return; if (!L.isQE) { lsec = L
 function lgoUnit(k) { const T = l3(), g0 = T.ULV[k] || T.UPR[k]; if (!g0) return; lsec = LVL(g0).c; lpos[lsec] = k; lcur = g0; lopen = g0; lview = "unit"; ltocOpen = false; lsave(); renderChapter(true); }
 function learnClick(e) {
   if (e.target.closest("[data-ltoc]")) { ltocOpen = !ltocOpen; renderToc(); return true; }
-  const sp = e.target.closest("[data-lsec]"); if (sp) { lsec = sp.dataset.lsec; lview = "home"; lopen = null; lsave(); renderChapter(false); return true; }
+  const sp = e.target.closest("[data-lsec]"); if (sp) { lsec = sp.dataset.lsec; lview = "home"; lopen = null; lsecsOpen = false; store.set("opus.lsecs", 0); lsave(); renderChapter(true); return true; }
   if (e.target.closest("[data-lhome]")) { const toR = e.target.closest("[data-lrefl]"); lview = "home"; ltocOpen = false; lsave(); renderChapter(!toR); if (toR) { const r = $("lrefl"); if (r) { r.open = true; r.scrollIntoView && r.scrollIntoView({ block: "start" }); } } return true; }
   if (e.target.closest("[data-llib]")) { lview = "lib"; lsave(); renderChapter(true); return true; }
+  if (e.target.closest("[data-lsecs]")) { lsecsOpen = !lsecsOpen; store.set("opus.lsecs", lsecsOpen ? 1 : 0); $("lsecs").innerHTML = secPicker(); fitBar(); return true; }
   const pk = e.target.closest("[data-lprior]");
   if (pk) { const g0 = pk.dataset.lprior; if (lprior.has(g0)) lprior.delete(g0); else lprior.add(g0);
     store.set("opus.lprior", [...lprior]); renderChapter(false); return true; }
@@ -10536,7 +10611,7 @@ const GLOSS = [
 ];
 const GL_MAP = new Map(); GLOSS.forEach((e, i) => e[0].forEach(w => { GL_MAP.set(w, i); if (/^[a-z]/.test(w)) GL_MAP.set(w[0].toUpperCase() + w.slice(1), i); }));
 const GL_RE = new RegExp("(?<![\\w’'-])(" + [...GL_MAP.keys()].sort((a, b) => b.length - a.length).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")(?![\\w’-])", "g");
-const GL_SKIP = ".ltask-ta,.bdg,.book,.bmain,.bfull,.librow,.librm,.librf,.lmatrix,.upstream,svg,button,a,script,style,input,textarea,select,summary,h1,h2,h3,h4,.term,.label,.mono,.glyph,.g,.hw-tag,.tabs,.secpick,.toc,#chips,.pill,.chip,.heb-ico,.abu-stage,.xc-name,#gloss-pop,.exq,#lexam-form,.check";
+const GL_SKIP = "#lsecs,.lbar,.rb,.ltask-ta,.bdg,.book,.bmain,.bfull,.librow,.librm,.librf,.lmatrix,.upstream,svg,button,a,script,style,input,textarea,select,summary,h1,h2,h3,h4,.term,.label,.mono,.glyph,.g,.hw-tag,.tabs,.secpick,.toc,#chips,.pill,.chip,.heb-ico,.abu-stage,.xc-name,#gloss-pop,.exq,#lexam-form,.check";
 const GL_SCOPE = ".why,.tile,.box,.reader,.howwhy,.surface,.chapter,.stack-s,li";
 function glossify(root) {
   if (!root || !root.querySelectorAll) return;
@@ -16141,7 +16216,7 @@ start();
 
 <script>
 (function(){
-  var BUILD="20261029152233";
+  var BUILD="20261029154750";
   if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js").catch(function(){}); }
   function check(){ fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.json();}).then(function(v){ if(v && v.build && v.build!==BUILD) location.reload(); }).catch(function(){}); }
   setInterval(check, 20*60*1000);
