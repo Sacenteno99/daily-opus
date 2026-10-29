@@ -7403,7 +7403,7 @@ function viewLevel(g) {
     <div class="box ${open ? "" : "try"} stack-s"><h4>${open ? (lcomplete(g) ? "Complete" : "Open: all prerequisites complete") : "This level is locked"}</h4>${reqHTML(g)}${open ? "" : `<p class="muted">You can read what this level covers, but its units open only when every prerequisite above is complete.</p>`}</div>
     ${L.isQE ? `<div class="stack-s"><h3>What this exam covers</h3><div class="plist">${L.from.map(a => tileHTML(a)).join("")}</div></div>` : `
     <div class="stack-s"><h3>Readings · ${nb} of ${mr.length} core and required read</h3><p class="muted">Tick a reading only when you've read the part named. The quiz opens when every core and required reading is ticked; the others are for going further. Each record says what kind of source it is.</p>${upHTML}<div class="books">${L.r.map(bibHTML).join("")}</div>
-    ${L.ph && L.ph.length ? `<div class="why"><span class="label">Bibliography still to be verified</span><ul>${L.ph.map(p => `<li class="muted">${esc(p)}</li>`).join("")}</ul></div>` : ""}</div>
+    ${L.pv && L.pv.length ? `<div class="why"><span class="label">Bibliography still to be verified</span><ul>${L.pv.map(p => `<li class="muted">${esc(p)}</li>`).join("")}</ul></div>` : ""}</div>
     <div class="stack-s"><h3>Units</h3><ol class="unit-list" start="${unitNumIn(L.c, L.u[0])}">${L.u.map(k => `<li>${open ? `<button type="button" class="linkish" data-u="${esc(k)}">${esc(uo(k).t)}</button>` : `<span class="muted">${esc(uo(k).t)}</span>`}${udone(k) ? ' <span style="color:#8fc39d">✓</span>' : ""}</li>`).join("")}</ol></div>`}
     ${quizBoxHTML(g)}${taskBoxHTML(g)}
     <div class="chapnav">${L.isQE ? `<button type="button" class="btn rip" data-lpath="1">‹ Study path</button>` : `<button type="button" class="btn rip" data-lhome="1">‹ Course overview</button>`}${!L.isQE && open && L.u.length ? `<button type="button" class="btn primary rip" data-u="${esc(L.u[0])}">Start: ${esc(uo(L.u[0]).t)} ›</button>` : `<button type="button" class="btn primary rip" data-lpath="1">Study path ›</button>`}</div>`;
@@ -11285,7 +11285,7 @@ C("res", { name: "Research Methods, Manuscript Studies and Textual Criticism", s
     desc: "Writing with sources, citing editions, manuscripts and translations, and the habit of working upstream from interpretation to manuscript.",
     u: ["res|Writing with sources: argument and evidence", "res|Citing editions, manuscripts and translations", "res|Working upstream"],
     r: [["booth2016", "CORE", "Parts III–IV"], ["reynolds2013", "REQUIRED", "chapter 6"]],
-    ph: ["Discipline-specific style guides (Chicago Manual of Style and SBL Handbook of Style) — editions to be added after verification."],
+    pv: ["Discipline-specific style guides (Chicago Manual of Style and SBL Handbook of Style) — editions to be added after verification."],
     req: [["res.3", ""], ["wem.4", "The research essay here applies the source criticism taught in Method IV."]],
     task: "Write a research essay of about 2,000 words on a question of your choice from any course you have completed, with an annotated bibliography. It must cite at least one critical edition and discuss at least one textual problem in the sources." }
   ] });
@@ -11380,7 +11380,7 @@ C("ara", { name: "Aramaic", short: "Aramaic", glyph: "ܐ", group: "Method and la
     desc: "Jewish Babylonian Aramaic, the artificial literary Aramaic of the Zohar, and reading the Zohar with Matt's notes.",
     u: ["ara|Talmudic Aramaic", "ara|The Aramaic of the Zohar", "ara|Reading the Zohar in the original"],
     r: [["sokoloff2002", "REFERENCE", "for all Talmudic Aramaic"], ["matt2004", "CORE", "the opening sections, read against the Aramaic text"], ["jastrow1903", "REFERENCE", ""]],
-    ph: ["A teaching grammar of Zoharic Aramaic: no standard English one is verified here; to be identified."],
+    pv: ["A teaching grammar of Zoharic Aramaic: no standard English one is verified here; to be identified."],
     req: [["ara.1", ""], ["kab.2", "You read the Zohar in Aramaic only after studying it in translation in Kabbalah II."]],
     task: "Original-language translation and commentary.", passage: "The opening of the Zohar's 'Hakdamah' or of Bereshit (Zohar 1:15a, 'בְּרֵישׁ הוּרְמָנוּתָא דְמַלְכָּא...'). Translate it with Matt's edition beside you, parse the verbs, and write about 800 words on its vocabulary and on how Matt's translation choices shape its meaning." }
   ] });
@@ -11634,7 +11634,7 @@ C("disc", { name: "Christian Theology of Magic and Discernment", short: "Theolog
     desc: "Current Catholic teaching, Orthodox and Protestant views, and the strongest case for engagement with esoteric traditions and the strongest case against.",
     u: ["disc|Catholic teaching today", "disc|Orthodox and Protestant views", "disc|The case for engagement and the case against"],
     r: [["ccc", "REQUIRED", "§§ 2110–2117"], ["tomberg", "RECOMMENDED", "Letter I, as one Christian author's case for engagement"]],
-    ph: ["Recent Protestant and Orthodox statements on occultism: to be identified and verified."],
+    pv: ["Recent Protestant and Orthodox statements on occultism: to be identified and verified."],
     req: [["disc.3", ""], ["xth.7", ""]],
     task: "Write about 1,000 words stating, as strongly and fairly as you can, the best Christian case for studying or engaging with an esoteric tradition you know well, and the best Christian case against. Present both; you need not decide." }
   ] });
@@ -11744,7 +11744,7 @@ C("astro", { name: "Astrology", short: "Astrology", glyph: "☉", group: "Tradit
     desc: "The empirical tests, what a test can and cannot show, and how to hold the history and the evidence together.",
     u: ["astro|The evidence", "astro|What a test can and cannot show"],
     r: [["carlson1985", "CORE", "the whole article"], ["dean2003", "REQUIRED", "the whole article"]],
-    ph: ["Replies to Carlson and later reanalyses: to be identified and verified."],
+    pv: ["Replies to Carlson and later reanalyses: to be identified and verified."],
     req: [["astro.8", ""], ["hsci.1", "You need a historian's sense of what 'science' is before judging the tests."]],
     task: "Annotated bibliography of at least eight items on the empirical testing of astrology, then a research essay of about 1,500 words: what the tests show, what they do not, and how an astrologer and a sceptic each read them." }
   ],
@@ -11763,7 +11763,7 @@ C("tarot", { name: "Tarot", short: "Tarot", glyph: "✶", group: "Traditions",
     desc: "The Marseille pattern, the Sola Busca and the illustrated minors, the iconography of the twenty-two trumps, the four suits, pips and court cards.",
     u: ["tarot|The Marseille pattern", "tarot|The Sola Busca and the minors", "tarot|The majors I: the powers", "tarot|The majors II: the turning", "tarot|The majors III: the descent and the light", "tarot|The four suits", "tarot|Ace to Ten", "tarot|The court cards"],
     r: [["farley2009", "CORE", "chapter 3"], ["kaplan1978", "REFERENCE", "for images of the historic decks"]],
-    ph: ["Studies of the Tarot de Marseille pattern and of the Sola Busca deck: to be verified."],
+    pv: ["Studies of the Tarot de Marseille pattern and of the Sola Busca deck: to be verified."],
     req: [["tarot.1", ""]], task: "Choose three trumps. In about 400 words, describe each as it appears in a 15th-century Italian deck and in the Marseille pattern, and say what Renaissance viewers would have recognized in it." },
   { id: "3", t: "The Occultization of Tarot", era: ["c18", "c19"], tier: "intermediate", hrs: 35, legacy: ["tarot|1"],
     desc: "Court de Gébelin's Egyptian myth (1781), Etteilla the first professional cartomancer, and Éliphas Lévi's linking of the trumps to the Hebrew letters.",
@@ -11781,7 +11781,7 @@ C("tarot", { name: "Tarot", short: "Tarot", glyph: "✶", group: "Traditions",
     desc: "Tomberg and his book, the Magician, the Hanged Man and Death, the Fool and the World.",
     u: ["tarot|Tomberg and his Meditations", "tarot|The Magician: concentration without effort", "tarot|The Hanged Man and Death in Tomberg", "tarot|Tomberg's Fool and World"],
     r: [["tomberg", "CORE", "Letters I, XII, XIII, XXI and XXII"]],
-    ph: ["Scholarship on Tomberg and the reception of the Meditations: to be identified and verified."],
+    pv: ["Scholarship on Tomberg and the reception of the Meditations: to be identified and verified."],
     req: [["tarot.4", ""], ["occ.3", "Tomberg wrote from inside modern Christian Hermeticism."], ["xmys.2", "The Meditations lean on the Fathers and Dionysius."]],
     task: "Write about 1,000 words on how Tomberg turns the Golden Dawn's tarot into a Christian spiritual exercise, and what he keeps and rejects from it." },
   { id: "6", t: "Modern Practice and Psychology", era: ["mod"], tier: "advanced", hrs: 30, legacy: ["tarot|0", "tarot|3"],
@@ -11807,7 +11807,7 @@ C("alch", { name: "Alchemy", short: "Alchemy", glyph: "☿", group: "Traditions"
     desc: "Baghdad and the elixir, the Jabirian corpus, the sulfur–mercury theory, and the Emerald Tablet in its Arabic setting.",
     u: ["alch|Baghdad and the elixir", "alch|The Jabirian corpus", "alch|Sulfur and mercury", "alch|The Emerald Tablet"],
     r: [["principe2013", "CORE", "chapter 2"], ["haq1994", "REQUIRED", "Part I"], ["ruska1926", "SPECIALIST", "for the Arabic and Latin texts of the Tablet"], ["kraus1942", "SPECIALIST", ""]],
-    ph: ["A scholarly English translation of the Emerald Tablet's Arabic versions (from the Sirr al-khalīqa and the Jabirian Kitāb Usṭuqus al-uss): to be identified and verified. Do not use an unattributed online version."],
+    pv: ["A scholarly English translation of the Emerald Tablet's Arabic versions (from the Sirr al-khalīqa and the Jabirian Kitāb Usṭuqus al-uss): to be identified and verified. Do not use an unattributed online version."],
     req: [["alch.1", ""], ["islam.1", "Arabic alchemy is part of the translation movement."]],
     task: "In about 400 words, explain the sulfur–mercury theory of metals and why it made transmutation seem reasonable." },
   { id: "3", t: "Medieval Latin Alchemy and Pseudo-Geber", era: ["hmed", "lmed"], tier: "intermediate", hrs: 35, legacy: ["alch|1"],
@@ -11875,14 +11875,14 @@ C("kab", { name: "Kabbalah: the Jewish Tradition", short: "Kabbalah", glyph: "א
     desc: "The expulsion and Safed, Cordovero's system, the Four Worlds, and the rituals Safed created: welcoming the Sabbath, the night vigils and the Omer.",
     u: ["kab|Expulsion and Safed", "kab|Cordovero", "kab|The Four Worlds and the Name", "kab|Welcoming the Sabbath", "kab|Midnight and Shavuot night", "kab|Counting the Omer"],
     r: [["robinson1994", "CORE", "the whole book"], ["jacobs1960", "REQUIRED", "the whole book"], ["fine2003", "REQUIRED", "chapters 1–2 on Safed"]],
-    ph: ["Bracha Sack's study of Cordovero in English: edition to verify."],
+    pv: ["Bracha Sack's study of Cordovero in English: edition to verify."],
     req: [["kab.3", ""], ["heb.3", "From Safed on, the reading assumes you can check the Hebrew."]],
     task: "Write about 1,000 words on how Safed's Kabbalists turned doctrine into ritual, using Cordovero and Fine." },
   { id: "5", t: "Isaac Luria and Hayyim Vital", era: ["ren", "c17"], tier: "advanced", hrs: 50, legacy: ["kab|1", "kab|2"],
     desc: "Tzimtzum, the breaking of the vessels and repair, souls and unifications, the kavvanot, and Sabbatai Sevi.",
     u: ["kab|Luria I: tzimtzum", "kab|Luria II: breaking and repair", "kab|Luria III: souls and unifications", "kab|Kavvanot", "kab|The false messiah"],
     r: [["fine2003", "CORE", "the whole book"], ["scholem1973", "REQUIRED", "chapter 1"], ["magid2008", "RECOMMENDED", ""]],
-    ph: ["An English translation of Vital's Etz Hayyim or Sha'ar ha-Hakdamot of scholarly standard: to be identified."],
+    pv: ["An English translation of Vital's Etz Hayyim or Sha'ar ha-Hakdamot of scholarly standard: to be identified."],
     req: [["kab.4", ""]],
     task: "Write about 1,000 words on Scholem's thesis that Lurianic Kabbalah answered the trauma of the expulsion, and on the criticism of that thesis by Idel and others." },
   { id: "6", t: "Hasidism, Modernity and the Scholarship of Kabbalah", era: ["c18", "c19", "mod"], tier: "research", hrs: 50, legacy: ["kab|2", "kab|3"],
@@ -11914,14 +11914,14 @@ C("xcab", { name: "Christian Cabala", short: "Christian Cabala", glyph: "✠", g
     desc: "Khunrath's rose, Kircher's Tree, Kabbala denudata, Adam Kadmon as Christ, and the Lehrtafel of Antonia.",
     u: ["xcab|Khunrath's rose", "xcab|Kircher's Tree", "xcab|Kabbala Denudata", "xcab|Adam Kadmon as Christ", "xcab|The Lehrtafel"],
     r: [["coudert1999", "CORE", "the whole book"], ["knorr1677", "SPECIALIST", "the title pages and the Adumbratio"], ["schmidtbiggemann", "SPECIALIST", ""]],
-    ph: ["Peter Forshaw's studies of Khunrath's Amphitheatrum: individual articles to be listed after verification."],
+    pv: ["Peter Forshaw's studies of Khunrath's Amphitheatrum: individual articles to be listed after verification."],
     req: [["xcab.2", ""], ["kab.5", "Kabbala denudata translated Lurianic texts; Luria comes first."]],
     task: "Write about 1,000 words on how Kabbala denudata transmitted Lurianic Kabbalah to Christian Europe, and what van Helmont and his circle did with it." },
   { id: "4", t: "Jewish Responses and Assessment", era: ["mod"], tier: "research", hrs: 35, legacy: ["xcab|3"],
     desc: "How Jews responded to Christian Cabala, an honest assessment, and a capstone in reading Scripture through the Christian Cabalists' methods.",
     u: ["xcab|Jewish responses to Christian Kabbalah", "xcab|An honest assessment", "xcab|Capstone: a psalm in four senses and ten names"],
     r: [["dan1997", "CORE", "Scholem's essay and the editor's introduction"], ["idel2011", "REQUIRED", "the chapters on Jewish responses"]],
-    ph: ["Further studies of Jewish responses to Christian Kabbalah (e.g. by Moshe Idel and Yossi Chajes): to be verified."],
+    pv: ["Further studies of Jewish responses to Christian Kabbalah (e.g. by Moshe Idel and Yossi Chajes): to be verified."],
     req: [["xcab.3", ""], ["kab.6", ""]],
     task: "Annotated bibliography of at least eight items, then a research essay of about 1,500 words: was Christian Cabala a misreading of Kabbalah, a new tradition, or both?" }
   ] });
@@ -11940,7 +11940,7 @@ C("eno", { name: "John Dee, Angelic Magic and Enochian Reception", short: "John 
     desc: "Edward Kelley, the conversations with the angels, how the sessions worked, and the question of Kelley's honesty.",
     u: ["eno|Edward Kelley", "eno|Dee, Kelley and the angels", "eno|How the sessions worked", "eno|The question of Kelley, again"],
     r: [["peterson2003", "CORE", "the introduction and the first two Books"], ["harkness1999", "CORE", "chapters 3–4"]],
-    ph: ["The manuscripts themselves (British Library Sloane MSS 3188 and 3191, Cotton Appendix XLVI): digitized-image references to be verified."],
+    pv: ["The manuscripts themselves (British Library Sloane MSS 3188 and 3191, Cotton Appendix XLVI): digitized-image references to be verified."],
     req: [["eno.1", ""]],
     task: "Close-read one session in Peterson's edition. In about 600 words, describe exactly what happened, who saw and who wrote, and what it shows about the roles of Dee and Kelley." },
   { id: "3", t: "The Received System", era: ["ren"], tier: "advanced", hrs: 40, legacy: ["eno|0", "eno|1"],
@@ -12050,14 +12050,14 @@ C("mart", { name: "Martinezism, Saint-Martin and Martinism", short: "Martinism",
     desc: "The Scottish high degrees in France, what 'illuminism' meant, and the lodges of Bordeaux and Lyon.",
     u: ["mart|The high degrees in France", "mart|What 'illuminism' meant", "mart|Bordeaux and Lyon"],
     r: [["leforestier1970", "CORE", "the first part (in French)"], ["dgwe2005", "REFERENCE", "the entries on Pasqually, Saint-Martin, Willermoz and Martinism"]],
-    ph: ["An English-language scholarly survey of French illuminism: to be identified and verified."],
+    pv: ["An English-language scholarly survey of French illuminism: to be identified and verified."],
     req: [["mason.1", ""], ["xth.6", "The Élus Coëns and Saint-Martin are Catholic in vocabulary."]],
     task: "In about 600 words, explain what the high degrees added to Craft Masonry in France, and why that created an opening for a theurgic order." },
   { id: "2", t: "Martinès de Pasqually and the Élus Coëns", era: ["c18"], tier: "intermediate", hrs: 35,
     desc: "What is known of Martinès, the Order of Élus Coëns, and the Treatise on the Reintegration of Beings.",
     u: ["mart|Martinès de Pasqually", "mart|The Order of Élus Coëns", "mart|The Treatise on the Reintegration of Beings"],
     r: [["pasqually2023", "REQUIRED", "the opening sections; translation details to verify"], ["leforestier1970", "CORE", "the chapters on the Élus Coëns"]],
-    ph: ["The French critical edition of the Traité (Robert Amadou's edition): details to verify.", "The Coën correspondence and rituals in published editions: to verify."],
+    pv: ["The French critical edition of the Traité (Robert Amadou's edition): details to verify.", "The Coën correspondence and rituals in published editions: to verify."],
     req: [["mart.1", ""]],
     task: "In about 600 words, summarize the myth of the Treatise (the fall of the spirits, Adam's fall and reintegration), and say how it differs from orthodox Christian doctrine." },
   { id: "3", t: "Coën Doctrine and Theurgy: a Historical Study", era: ["c18"], tier: "advanced", hrs: 35,
@@ -12082,7 +12082,7 @@ C("mart", { name: "Martinezism, Saint-Martin and Martinism", short: "Martinism",
     desc: "Papus and the Martinist Order of 1891, Martinism after Papus, and how to assess lineage claims.",
     u: ["mart|Papus and the Martinist Order", "mart|Martinism after Papus", "mart|Assessing lineage claims"],
     r: [["papus1899", "REQUIRED", "a primary source for modern Martinism's self-image"], ["dgwe2005", "REFERENCE", "the entry on Martinism"]],
-    ph: ["Scholarly studies of the 1891 Martinist Order and its successors: to be identified and verified."],
+    pv: ["Scholarly studies of the 1891 Martinist Order and its successors: to be identified and verified."],
     req: [["mart.5", ""], ["occ.1", "Papus belongs to the French occult revival."], ["wem.4", "Assessing lineage claims is the method taught in Method IV."]],
     task: "Annotated bibliography of at least eight items, then a research essay of about 1,500 words testing the Martinist Order's claim of continuity with Saint-Martin." }
   ] });
@@ -12107,7 +12107,7 @@ C("occ", { name: "Modern Occultism and Christian Hermeticism", short: "Modern Oc
     desc: "Crowley and Thelema, Tomberg from Anthroposophy to Catholicism, and Tomberg as heir of the Hermetic tradition.",
     u: ["occ|Crowley and Thelema", "occ|Tomberg, from Anthroposophy to Rome", "xcab|Tomberg as heir"],
     r: [["pasi2014", "CORE", "the whole book"], ["tomberg", "CORE", "the Foreword and Letters I–II"], ["hutton1999", "RECOMMENDED", "the chapters on ritual magic"]],
-    ph: ["Scholarly studies of Valentin Tomberg's life and work: to be identified and verified."],
+    pv: ["Scholarly studies of Valentin Tomberg's life and work: to be identified and verified."],
     req: [["occ.2", ""], ["xmys.2", "Tomberg reads the tarot through the Church Fathers."]],
     task: "Write about 1,000 words comparing Crowley's and Tomberg's ways of using the Golden Dawn's inheritance." }
   ] });
@@ -15018,7 +15018,7 @@ start();
 
 <script>
 (function(){
-  var BUILD="20261028200118";
+  var BUILD="20261028200210";
   if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js").catch(function(){}); }
   function check(){ fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.json();}).then(function(v){ if(v && v.build && v.build!==BUILD) location.reload(); }).catch(function(){}); }
   setInterval(check, 20*60*1000);
