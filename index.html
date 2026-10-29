@@ -434,6 +434,9 @@ ul.reqs .linkish { text-align: left; }
 .librm{display:flex;gap:10px;align-items:flex-start;flex:1 1 320px;cursor:pointer;min-width:0}
 .librf{display:flex;gap:6px;align-items:center;font-size:.78rem;color:var(--muted);cursor:pointer;white-space:nowrap}
 .librf input{width:15px;height:15px;accent-color:#cba44b}
+/* v5: prior knowledge */
+.tile.prior{opacity:.82}
+.lmcell.prior{border-style:dashed}
 </style>
 
 <div class="app">
@@ -7201,6 +7204,8 @@ const RUBRIC = {
 let lexRes = null, lsec = store.get("opus.lsec") || "src", lpos = store.get("opus.lpos2") || {}, lview = store.get("opus.lview2") || "path", ltocOpen = false, lopen = null, lcur = store.get("opus.lcur") || null;
 const lread = new Set(store.get("opus.lread") || []), lread2 = new Set(store.get("opus.lread2") || []), ldone = new Set(store.get("opus.ldone") || []), lchk = new Set(store.get("opus.lchk") || []), lpeek = new Set(store.get("opus.lpeek") || []);
 const lfull = new Set(store.get("opus.lfull") || []);
+const lprior = new Set(store.get("opus.lprior") || []);
+const PRIORNOTE = "Prerequisites exist to prevent misunderstanding, not to make you repeat what you already know. A level marked as prior knowledge counts in full for everything downstream, stays here as a refresher, and never appears as your next step.";
 const MINRULE = "The reading named for each work is the <b>minimum</b> for this level, never a limit. You are always free, and warmly encouraged, to read on through the whole work when it interests you: finishing the whole work also satisfies the assigned part, and nothing in the school ever waits on reading beyond the minimum.";
 const lexam = store.get("opus.lexam") || {}, lxs = store.get("opus.lxs") || {}, ltask = store.get("opus.ltask") || {}, lrefl = store.get("opus.lrefl") || {};
 let libRole = "all", libQ = "", libUnread = false, libFull = false;
@@ -7247,6 +7252,23 @@ function lmigrate() {
       else if (cs.length === 1 && at[cs[0]] && at[cs[0]].text) ltask[L.gid] = { text: at[cs[0]].text }; });
     store.set("opus.lxs", lxs); store.set("opus.ltask", ltask); store.set("opus.lexcur2", null); lexCur = null; store.set("opus.v4", Date.now());
   }
+  // v4 -> v5: levels were renumbered in Astrology, Tarot, Platonism and the Jewish courses, and the
+  // introductory Christian and Jewish levels are taken as already known. Results move with their level;
+  // a level that was genuinely rebuilt keeps its old result in the archive instead.
+  if (!store.get("opus.v5")) {
+    const MAP = { "astro.1": "astro.11", "astro.3": "astro.4", "astro.4": "astro.5", "astro.5": "astro.6", "astro.6": "astro.7", "astro.7": "astro.8", "astro.8": "astro.9", "astro.9": "astro.10",
+      "tarot.1": "tarot.2", "tarot.2": "tarot.3", "tarot.3": "tarot.4", "tarot.4": "tarot.5", "tarot.5": "tarot.6", "tarot.6": "tarot.7",
+      "anc.2": "anc.4", "anc.3": "anc.2", "anc.4": "anc.3", "jew.1": "jew.2", "jew.3": "jew.3" };
+    const DROP = { "astro.2": 1, "anc.1": 1, "anc.5": 1, "jew.2": 1, "kab.1": 1 };
+    const move = o => { const out = {}, arch = {};
+      Object.keys(o).forEach(k => { const t = MAP[k] !== undefined ? MAP[k] : (DROP[k] ? null : k); if (t) out[t] = o[k]; else arch[k] = o[k]; });
+      Object.keys(o).forEach(k => delete o[k]); Object.assign(o, out); return arch; };
+    const a1 = move(lxs), a2 = move(ltask);
+    store.set("opus.v5arch", { lxs: a1, ltask: a2, at: Date.now() });
+    store.set("opus.lxs", lxs); store.set("opus.ltask", ltask); store.set("opus.lexcur2", null); lexCur = null;
+    Object.values(L3.LV).forEach(L => { if (L.prior && !lcomplete(L.gid)) lprior.add(L.gid); });
+    store.set("opus.lprior", [...lprior]); store.set("opus.v5", Date.now());
+  }
 }
 const LVL = g => l3().LV[g];
 const lvName = g => { const L = LVL(g); return L ? L.name : g; };
@@ -7273,7 +7295,8 @@ const udone = k => ldone.has(k);
 const mustRead = g => (LVL(g).r || []).filter(r => MUSTREAD[r[1]]);
 function quizPassed(g) { return !!(lxs[g] && lxs[g].passed); }
 function taskPassed(g) { return !!(ltask[g] && ltask[g].pass); }
-function lcomplete(g) { const L = LVL(g); if (!L) return false; if (L.isP) return L.u.every(udone); return quizPassed(g) && taskPassed(g); }
+function lprior_(g) { return lprior.has(g); }
+function lcomplete(g) { const L = LVL(g); if (!L) return false; if (L.isP) return L.u.every(udone); if (lprior.has(g)) return true; return quizPassed(g) && taskPassed(g); }
 function lreqs(g) { const L = LVL(g); if (!L) return []; if (L.isP) return L.req.map(x => [x, ""]); if (L._rq) return L._rq; const out = [], seen = {}; const add = ([a, why]) => { if (seen[a]) { if (why && !seen[a][1]) seen[a][1] = why; return; } seen[a] = [a, why || ""]; out.push(seen[a]); }; if (!L.isQE && L.i > 0) add([PLAN[L.c].levels[L.i - 1].gid, ""]); (L.req || []).forEach(add); return (L._rq = out); }
 function lopenG(g) { return true; } // prerequisites are advice: every level can be begun at any time
 function lready(g) { return lreqs(g).every(([a]) => lcomplete(a)); }
@@ -7289,7 +7312,7 @@ function quizState(g) {
   if (poolOf(g).length < 8) why.push("This quiz's question bank is not ready yet.");
   return { ok: why.length === 0, why };
 }
-function lstatus(g) { return lcomplete(g) ? "done" : lready(g) ? "open" : "early"; }
+function lstatus(g) { return lprior.has(g) ? "prior" : lcomplete(g) ? "done" : lready(g) ? "open" : "early"; }
 function lphaseOf(L) { if (L.ph !== undefined) return L.ph; if (L.tier === "research" || L.tier === "highest") return 9; const m = { method: 0, anc: 1, late: 2, emed: 3, hmed: 3, lmed: 4, ren: 5, c17: 6, c18: 7, c19: 7, mod: 8 }; return m[(L.era || ["mod"])[0]]; }
 
 /* ---- question pools ---- */
@@ -7298,7 +7321,7 @@ function ownPool(g) {
   const L = LVL(g), T = l3(), out = [], seen = new Set(), add = Q => { if (!Q || seen.has(Q.q)) return; seen.add(Q.q); out.push(Q); };
   if (L.isQE) { L.from.forEach(a => ownPool(a).forEach(add)); return out; }
   L.u.forEach(k => { const u = uo(k); u.qs.forEach(c => c && add(toBank(c, u.t))); (T.QB[k] || []).forEach(add); });
-  ((typeof XQ !== "undefined" && L.xq && XQ[L.xq]) || []).forEach(x => add({ t: x[4] || L.t, q: x[0], o: x[1], a: x[2] }));
+  (typeof XQ !== "undefined" && L.xq ? [].concat(L.xq).flatMap(k => XQ[k] || []) : []).forEach(x => add({ t: x[4] || L.t, q: x[0], o: x[1], a: x[2] }));
   return out;
 }
 function poolOf(g) { const L = LVL(g), p = ownPool(g); if (L.drill && typeof DRILL !== "undefined") L.drill.forEach(d => { if (DRILL[d]) p.push(...DRILL[d](16)); }); return p; }
@@ -7421,7 +7444,7 @@ function secPicker() {
   return `<div class="lnav"><button type="button" class="btn rip${lview === "path" ? " primary" : ""}" data-lpath="1">❖ Your path · ${done}/${all.length}</button><button type="button" class="btn rip${lview === "lib" ? " primary" : ""}" data-llib="1">❧ Library</button><button type="button" class="btn rip${lview === "era" ? " primary" : ""}" data-lera="1">⧗ By era</button></div>
     ${groupsOf().map(([gn, cs]) => `<div class="lgroup"><span class="label">${esc(gn)}</span><div class="secpick" role="group" aria-label="${esc(gn)}">${cs.map(c => `<button type="button" class="rip" data-lsec="${c}" aria-pressed="${c === lsec && !["path", "era", "qe", "lib"].includes(lview)}"><span class="g">${g(PLAN[c].glyph)}</span><span>${esc(PLAN[c].short)}</span><span class="sp-bar"><span style="width:${Math.round(100 * cprog(c))}%"></span></span></button>`).join("")}</div></div>`).join("")}`;
 }
-const optLabel = L => (L.isQE ? "Checkpoint" : L.opt === "spec" ? "Specialist" : L.opt === "rec" ? "Recommended" : routeOf(L.gid) ? "On the route" : "Elective");
+const optLabel = L => (L.isQE ? "Checkpoint" : L.opt === "ref" ? "Refresher" : L.opt === "spec" ? "Specialist" : L.opt === "rec" ? "Elective" : routeOf(L.gid) ? "On the route" : "Elective");
 function routeOf(g) { for (let i = 0; i < ROUTE.length; i++) if (ROUTE[i][1].includes(g)) return i + 1; return 0; }
 const routeFlat = () => ROUTE.flatMap(r => r[1]);
 function nextOnRoute() { return routeFlat().find(g => LVL(g) && !lcomplete(g)) || null; }
@@ -7433,7 +7456,7 @@ function renderToc() {
   const lvBlock = (L, label) => { const st = lstatus(L.gid), exp = lopen === L.gid; return `<div class="toc-lvl${exp ? " exp" : ""}"><button type="button" class="toc-lh" data-lvl="${L.gid}" aria-expanded="${exp}"><span class="n">${label}</span><span>${esc(L.t)}<br><span class="muted" style="font-size:.78rem">${L.u.filter(udone).length}/${L.u.length} units${L.r ? ` · ${mustRead(L.gid).filter(r => lread2.has(r[0])).length}/${mustRead(L.gid).length} readings` : ""}</span></span><span>${st === "done" ? "✓" : ""}</span></button>
       ${exp ? `<div class="toc-units"><button type="button" data-lgo="${L.gid}" aria-current="${(lview === "lvl" || lview === "prac") && lcur === L.gid}"><span class="n">❦</span><span>${L.isP ? "About this practice module" : "Readings, quiz, written work"}</span><span>${lcomplete(L.gid) ? "✓" : ""}</span></button>${L.u.map(k => `<button type="button" data-u="${esc(k)}" aria-current="${lview === "unit" && lpos[lsec] === k}"><span class="n">${L.isP ? "◇" : String(unitNumIn(lsec, k)).padStart(2, "0")}</span><span>${esc(uo(k).t)}</span><span class="done">${udone(k) ? "✓" : ""}</span></button>`).join("")}</div>` : ""}</div>`; };
   $("toc").innerHTML = `<button type="button" class="toc-toggle" data-ltoc="1" aria-expanded="${ltocOpen}">${ltocOpen ? "Hide" : "Show"} course contents</button>
-    <div class="toc-body${ltocOpen ? " open" : ""}"><button type="button" class="toc-home" data-lhome="1" aria-current="${lview === "home"}"><span class="g">${g(P.glyph)}</span><span><b>${esc(P.name)}</b><br><span class="muted" style="font-size:.82rem">${P.levels.filter(L => lcomplete(L.gid)).length} of ${P.levels.length} levels complete</span></span></button>
+    <div class="toc-body${ltocOpen ? " open" : ""}"><button type="button" class="toc-home" data-lhome="1" aria-current="${lview === "home"}"><span class="g">${g(P.glyph)}</span><span><b>${esc(P.name)}</b><br><span class="muted" style="font-size:.82rem">${P.levels.filter(L => lcomplete(L.gid)).length} of ${P.levels.length} levels complete${P.levels.some(L => lprior.has(L.gid)) ? `, ${P.levels.filter(L => lprior.has(L.gid)).length} by prior knowledge` : ""}</span></span></button>
     ${P.levels.map(L => lvBlock(L, ROMAN(L.i))).join("")}${(P.practice || []).map(M => lvBlock(M, "◇")).join("")}</div>`;
 }
 function reqHTML(g) {
@@ -7455,7 +7478,8 @@ function viewLevel(g) {
   if (L.isP) return viewPractice(g);
   const P = PLAN[L.c], open = lopenG(g), mr = mustRead(g), nb = mr.filter(r => lread2.has(r[0])).length, nf = (L.r || []).filter(r => lfull.has(r[0])).length;
   return `<span class="label">${L.isQE ? "Synthesis checkpoint" : `${esc(P.name)} · Level ${ROMAN(L.i)}`} · ${TIERS[L.tier].n} · ${optLabel(L)}${(L.era || []).length ? " · " + L.era.map(eraName).join(", ") : ""}${L.hrs ? ` · about ${L.hrs} hours` : ""}</span><h2>${esc(L.t)}</h2><p class="lead">${L.desc}</p>
-    ${lcomplete(g) ? `<div class="box nugget"><h4>✓ Complete</h4></div>` : lreqs(g).length ? `<details class="box stack-s"${lready(g) ? "" : " open"}><summary class="label" style="cursor:pointer">${lready(g) ? "✓ What helps to have done first" : "Helpful to have done first (you can begin anyway)"}</summary>${reqHTML(g)}</details>` : ""}
+    ${priorBoxHTML(g)}
+    ${lcomplete(g) || L.isQE ? "" : lreqs(g).length ? `<details class="box stack-s"${lready(g) ? "" : " open"}><summary class="label" style="cursor:pointer">${lready(g) ? "✓ What helps to have done first" : "Helpful to have done first (you can begin anyway)"}</summary>${reqHTML(g)}</details>` : ""}
     ${L.isQE ? `<div class="stack-s"><h3>What this checkpoint covers</h3><div class="plist">${L.from.map(a => tileHTML(a)).join("")}</div></div>` : `
     <div class="stack-s"><h3>Readings${mr.length ? ` · ${nb} of ${mr.length} core and required read` : ""}${nf ? ` · ${nf} read in full` : ""}</h3><p class="muted">Primary sources lead; commentary explains them. Tick a reading when you've read at least the part named: the quiz opens when every core and required reading is ticked. Recommended, specialist and optional readings are for going further.</p><div class="why"><span class="label">Assigned reading is a floor, not a ceiling</span><p>${MINRULE}</p></div><div class="books">${L.r.map(bibHTML).join("")}</div>
     ${L.pv && L.pv.length ? `<div class="why"><span class="label">Still to be verified</span><ul>${L.pv.map(p => `<li class="muted">${esc(p)}</li>`).join("")}</ul></div>` : ""}</div>
@@ -7463,6 +7487,12 @@ function viewLevel(g) {
     ${quizBoxHTML(g)}${taskBoxHTML(g)}
     ${!L.isQE && L.i === PLAN[L.c].levels.length - 1 ? `<p class="muted">This is the last level of the course. When you finish it, there is an optional <button type="button" class="linkish" data-lhome="1" data-lrefl="1">reflection space</button> on the course page.</p>` : ""}
     <div class="chapnav">${L.isQE ? `<button type="button" class="btn rip" data-lpath="1">‹ Your path</button>` : `<button type="button" class="btn rip" data-lhome="1">‹ Course overview</button>`}${!L.isQE && open && L.u.length ? `<button type="button" class="btn primary rip" data-u="${esc(L.u[0])}">Start: ${esc(uo(L.u[0]).t)} ›</button>` : `<button type="button" class="btn primary rip" data-lpath="1">Your path ›</button>`}</div>`;
+}
+function priorBoxHTML(g) {
+  const L = LVL(g); if (L.isP) return "";
+  if (lprior.has(g)) return `<div class="box nugget stack-s" id="lprior"><h4>✓ Satisfied by prior knowledge</h4><p>You have marked this level as material you already know. It counts in full wherever it is needed, and everything in it stays here as a refresher: read any unit, tick any reading, and take the quiz if you ever want to.</p><p><button type="button" class="btn rip" data-lprior="${g}">I'd rather work through it</button></p></div>`;
+  if (lcomplete(g)) return `<div class="box nugget"><h4>✓ Complete</h4></div>`;
+  return `<div class="box stack-s" id="lprior"><h4>${lready(g) ? "Open" : "Open, though some ground is usually taken first"}</h4><p class="muted">${PRIORNOTE}</p><p><button type="button" class="btn rip" data-lprior="${g}">I already know this: mark it satisfied</button></p></div>`;
 }
 function viewPractice(g) {
   const M = LVL(g), open = lopenG(g);
@@ -7500,7 +7530,7 @@ function tileHTML(gid, big, here) {
   const L = LVL(gid), st = lstatus(gid);
   const u = L.u.length ? L.u.filter(udone).length / L.u.length : (L.isQE ? L.from.filter(lcomplete).length / L.from.length : 0);
   const lab = L.isQE ? "Checkpoint" : L.isP ? "Practice" : `${g(PLAN[L.c].glyph)} ${esc(L.name)}${L.opt ? " · " + optLabel(L) : ""}`;
-  return `<button type="button" class="tile rip pitem${st === "done" ? " done" : ""}${here ? " here" : ""}${big ? " lvl-card" : ""}" data-lgo="${gid}"><span class="label">${here ? "▸ You are here · " : ""}${lab}${st === "done" ? " · ✓" : ""}</span><b>${esc(L.t)}</b>${big && L.desc ? `<span class="muted" style="font-size:.88rem">${L.desc}</span>` : ""}${!L.isQE ? `<span class="pst">${L.u.length} unit${L.u.length === 1 ? "" : "s"}${L.hrs ? ` · ~${L.hrs} h` : ""}</span>` : ""}<span class="sp-bar"><span style="width:${Math.round(100 * u)}%"></span></span></button>`;
+  return `<button type="button" class="tile rip pitem${st === "done" || st === "prior" ? " done" : ""}${st === "prior" ? " prior" : ""}${here ? " here" : ""}${big ? " lvl-card" : ""}" data-lgo="${gid}"><span class="label">${here ? "▸ You are here · " : ""}${lab}${st === "prior" ? " · ✓ known" : st === "done" ? " · ✓" : ""}</span><b>${esc(L.t)}</b>${big && L.desc ? `<span class="muted" style="font-size:.88rem">${L.desc}</span>` : ""}${!L.isQE ? `<span class="pst">${L.u.length} unit${L.u.length === 1 ? "" : "s"}${L.hrs ? ` · ~${L.hrs} h` : ""}</span>` : ""}<span class="sp-bar"><span style="width:${Math.round(100 * u)}%"></span></span></button>`;
 }
 function viewPath() {
   const T = l3(), all = Object.values(T.LV).filter(L => !L.isP), done = all.filter(L => lcomplete(L.gid));
@@ -7512,17 +7542,27 @@ function viewPath() {
   const stages = ROUTE.map(([name, gs], i) => { const items = gs.filter(LVL), dn = items.filter(lcomplete).length, isHere = items.includes(here);
     return `<details class="lphase"${isHere ? " open" : ""}><summary><span class="label">Stage ${i + 1}</span> <b>${esc(name)}</b> <span class="muted">· ${dn}/${items.length}${dn === items.length ? " ✓" : ""}</span></summary><div class="plist">${items.map(g0 => tileHTML(g0, false, g0 === here)).join("")}</div></details>`; }).join("");
   const off = all.filter(L => !inRoute.has(L.gid)), rec = off.filter(L => L.opt === "rec"), spec = off.filter(L => L.opt === "spec"), other = off.filter(L => !L.opt);
-  const mat = `<div class="lmatrix" role="table" aria-label="Every course and its levels">${COURSE_ORDER.map(c => `<div class="lmrow" role="row"><button type="button" class="lmc" data-lsec="${c}" role="rowheader"><span class="g">${g(PLAN[c].glyph)}</span> ${esc(PLAN[c].short)}</button>${PLAN[c].levels.map(L => { const st = lstatus(L.gid); return `<button type="button" class="lmcell ${st === "done" ? "done" : "open"}${L.gid === here ? " here" : ""}" data-lgo="${L.gid}" role="cell" title="${esc(L.name + ": " + L.t)}" aria-label="${esc(L.name + ": " + L.t + (st === "done" ? ", complete" : ""))}">${ROMAN(L.i)}</button>`; }).join("")}</div>`).join("")}</div>`;
+  const mat = `<div class="lmatrix" role="table" aria-label="Every course and its levels">${COURSE_ORDER.map(c => `<div class="lmrow" role="row"><button type="button" class="lmc" data-lsec="${c}" role="rowheader"><span class="g">${g(PLAN[c].glyph)}</span> ${esc(PLAN[c].short)}</button>${PLAN[c].levels.map(L => { const st = lstatus(L.gid); return `<button type="button" class="lmcell ${st === "done" ? "done" : st === "prior" ? "prior" : "open"}${L.gid === here ? " here" : ""}" data-lgo="${L.gid}" role="cell" title="${esc(L.name + ": " + L.t)}" aria-label="${esc(L.name + ": " + L.t + (st === "done" ? ", complete" : ""))}">${ROMAN(L.i)}</button>`; }).join("")}</div>`).join("")}</div>`;
   return `<span class="label">${COURSE_ORDER.length} courses · ${all.length} levels and checkpoints · ${done.length} complete</span><h2>Your path</h2>
     <p class="lead">A school of the traditions, each taught on its own terms: its texts, teachings, practices and inner logic. Follow the route below in order, or open any course and begin anywhere: nothing is locked.</p>
     ${card}
     <div class="why"><span class="label">How it works</span><p>Each level has units (with short checks), a few readings, a quiz and one piece of written work: explaining a teaching, interpreting a passage, reconstructing a practice, or telling two things apart. The route puts the levels in a sensible order across courses; a level's page also says what helps to have done first. Languages, context courses and specialist levels sit beside the route. At the end of each course there is a private reflection space, kept apart from the teaching.</p><p>${MINRULE}</p></div>
     <div class="stack-s"><h3>The route</h3>${stages}</div>
-    ${rec.length ? `<div class="stack-s"><h3>Beside the route: recommended</h3><p class="muted">Languages and context that make the route richer. Take them when they help.</p><div class="plist">${rec.map(L => tileHTML(L.gid)).join("")}</div></div>` : ""}
+    ${priorPanel()}
+    ${rec.length ? `<div class="stack-s"><h3>Beside the route: electives</h3><p class="muted">Languages, context and background that make the route richer. Take them when they help; none of them gate anything.</p><div class="plist">${rec.map(L => tileHTML(L.gid)).join("")}</div></div>` : ""}
     ${other.length ? `<div class="stack-s"><h3>Electives</h3><div class="plist">${other.map(L => tileHTML(L.gid)).join("")}</div></div>` : ""}
     ${spec.length ? `<details class="lphase"><summary><b>For a chosen specialization</b> <span class="muted">· ${spec.length} levels</span></summary><p class="muted">Advanced languages and scholarly tools, never needed for the route.</p><div class="plist">${spec.map(L => tileHTML(L.gid)).join("")}</div></details>` : ""}
     <div class="stack-s"><h3>Every course at a glance</h3>${mat}<p class="muted">Gold: complete. The outlined cell is where you are. Tap a level to open it.</p></div>
     ${syncBoxHTML()}`;
+}
+function priorPanel() {
+  const P = [...lprior].map(LVL).filter(Boolean);
+  const hrs = P.reduce((a, L) => a + (L.hrs || 0), 0);
+  return `<details class="lphase" id="lpriorpanel"${P.length ? "" : " open"}><summary><b>Assumed prior knowledge</b> <span class="muted">· ${P.length} level${P.length === 1 ? "" : "s"}${hrs ? `, about ${hrs} hours` : ""}</span></summary>
+    <p class="muted">${PRIORNOTE}</p>
+    ${P.length ? `<p class="muted">Taken as already known for you: biblical literacy and the shape of both Testaments, the Tanakh and the prophets, historical-critical method, the major doctrines and ecumenical councils, patristic and broad church history, the Reformation, Catholic, Protestant and Orthodox distinctions, and basic Jewish history. The levels that teach that ground are below. Open any of them to use as a refresher, or unmark one from its own page to work through it properly.</p>
+    <div class="plist">${P.map(L => tileHTML(L.gid)).join("")}</div>` : `<p class="muted">Nothing is marked as prior knowledge. On any level's page you can mark it satisfied if you already know the material.</p>`}
+  </details>`;
 }
 function viewLib() {
   const q = libQ.trim().toLowerCase(), roleOk = d => libRole === "all" ? true : libRole === "must" ? !!MUSTREAD[d] : d === libRole;
@@ -7590,8 +7630,8 @@ function syncExport() {
 }
 function syncSummary(d) {
   const P = k => { try { return JSON.parse(d[k] || "null"); } catch (e) { return null; } };
-  const u = (P("opus.ldone") || []).length, b = Math.max((P("opus.lread2") || []).length, (P("opus.lread") || []).length), f = (P("opus.lfull") || []).length, x = Object.values(P("opus.lxs") || {}).filter(r => r && r.passed).length || Object.values(P("opus.lexam") || {}).filter(r => r && r.passed).length;
-  return `${u} unit${u === 1 ? "" : "s"} finished, ${b} reading${b === 1 ? "" : "s"} ticked${f ? ` (${f} in full)` : ""}, ${x} quiz${x === 1 ? "" : "zes"} passed`;
+  const u = (P("opus.ldone") || []).length, b = Math.max((P("opus.lread2") || []).length, (P("opus.lread") || []).length), f = (P("opus.lfull") || []).length, pk = (P("opus.lprior") || []).length, x = Object.values(P("opus.lxs") || {}).filter(r => r && r.passed).length || Object.values(P("opus.lexam") || {}).filter(r => r && r.passed).length;
+  return `${u} unit${u === 1 ? "" : "s"} finished, ${b} reading${b === 1 ? "" : "s"} ticked${f ? ` (${f} in full)` : ""}, ${x} quiz${x === 1 ? "" : "zes"} passed${pk ? `, ${pk} level${pk === 1 ? "" : "s"} marked as prior knowledge` : ""}`;
 }
 function mergeTries(A, B) { const seen = new Set(), tries = [...(A.tries || []), ...(B.tries || [])].filter(t => !seen.has(t.at) && seen.add(t.at)).sort((x, y) => x.at - y.at), ps = [A.passed, B.passed].filter(Boolean), o = { tries }; if (ps.length) o.passed = Math.min(...ps); if (A.credited || B.credited) o.credited = A.credited || B.credited; return o; }
 function syncImport(code) {
@@ -7602,14 +7642,14 @@ function syncImport(code) {
   const parse = v => { try { return JSON.parse(v); } catch (e) { return null; } };
   const pre4 = !("opus.v4" in data); // a code from before the curriculum was rebuilt: its quiz results belong to the old levels
   Object.keys(data).forEach(k => {
-    if (pre4 && ["opus.lxs", "opus.ltask", "opus.lexcur2", "opus.lexam"].includes(k)) return;
+    if ((pre4 || !("opus.v5" in data)) && ["opus.lxs", "opus.ltask", "opus.lexcur2", "opus.lexam"].includes(k)) return;
     const inc = parse(data[k]), cur = get(k); let val;
-    if (["opus.ldone", "opus.lread", "opus.lread2", "opus.lfull", "opus.lchk", "opus.lpeek"].includes(k)) val = [...new Set([...(cur || []), ...(inc || [])])];
+    if (["opus.ldone", "opus.lread", "opus.lread2", "opus.lfull", "opus.lchk", "opus.lpeek", "opus.lprior"].includes(k)) val = [...new Set([...(cur || []), ...(inc || [])])];
     else if (k === "opus.lopenAt") { val = Object.assign({}, inc || {}); Object.entries(cur || {}).forEach(([a, t]) => { val[a] = val[a] ? Math.min(val[a], t) : t; }); }
     else if (k === "opus.lexam" || k === "opus.lxs") { val = {}; new Set([...Object.keys(cur || {}), ...Object.keys(inc || {})]).forEach(a => { val[a] = mergeTries((cur || {})[a] || {}, (inc || {})[a] || {}); }); }
     else if (k === "opus.lrefl") { val = Object.assign({}, cur || {}); Object.entries(inc || {}).forEach(([c, R]) => { const o = val[c] || {}; if (!o.at || (R && R.at > o.at)) val[c] = R; }); }
     else if (k === "opus.ltask") { val = Object.assign({}, inc || {}); Object.entries(cur || {}).forEach(([a, t]) => { const o = val[a]; if (!o || (t.pass && !o.pass) || (!o.pass && (t.at || 0) > (o.at || 0)) || (!o.pass && !t.pass && (t.text || "").length > (o.text || "").length)) val[a] = t; }); }
-    else if (k === "opus.v4" || k === "opus.v3arch") return;
+    else if (k === "opus.v4" || k === "opus.v5" || k === "opus.v3arch" || k === "opus.v5arch") return;
     else if (cur === null || cur === undefined) val = inc; else return;
     try { localStorage.setItem(k, JSON.stringify(val)); } catch (e) { throw new Error("This app isn't allowing saved data, so the progress can't be stored here."); }
   });
@@ -7661,6 +7701,9 @@ function learnClick(e) {
   const sp = e.target.closest("[data-lsec]"); if (sp) { lsec = sp.dataset.lsec; lview = "home"; lopen = null; lsave(); renderChapter(false); return true; }
   if (e.target.closest("[data-lhome]")) { const toR = e.target.closest("[data-lrefl]"); lview = "home"; ltocOpen = false; lsave(); renderChapter(!toR); if (toR) { const r = $("lrefl"); if (r) { r.open = true; r.scrollIntoView && r.scrollIntoView({ block: "start" }); } } return true; }
   if (e.target.closest("[data-llib]")) { lview = "lib"; lsave(); renderChapter(true); return true; }
+  const pk = e.target.closest("[data-lprior]");
+  if (pk) { const g0 = pk.dataset.lprior; if (lprior.has(g0)) lprior.delete(g0); else lprior.add(g0);
+    store.set("opus.lprior", [...lprior]); renderChapter(false); return true; }
   const lr = e.target.closest("[data-librole]"); if (lr) { libRole = lr.dataset.librole; renderChapter(false); return true; }
   const lh = e.target.closest("[data-lvl]"); if (lh) { const g0 = lh.dataset.lvl; lopen = lopen === g0 ? "" : g0; renderToc(); return true; }
   const lu = e.target.closest("[data-u]"); if (lu) { lgoUnit(lu.dataset.u); return true; }
@@ -11737,30 +11780,30 @@ C("spec", { name: "For Specialists: Scholarship, Manuscripts and Editions", shor
 
 /* ================= CHRISTIANITY ================= */
 C("xth", { name: "Christianity: Scripture, Creed and Sacrament", short: "Christianity", glyph: "☧", group: "Christianity",
-  intro: "The faith itself, in the order a Christian learns it: Scripture, then God, the Trinity and Christ, then the Fall, grace and salvation, then the sacramental life of the Church, then the unseen world of angels, demons and saints. A short last level tells the story of the Church's divisions and renewals.",
-  method: "Read Scripture and the Church's own texts first; a historian or theologian is there to explain them. Where Catholics, Orthodox and Protestants differ, each is stated in its own terms.",
+  intro: "The faith itself: Scripture, God and Christ, the Fall and grace, the sacramental life, and the unseen world of angels, demons and saints. For your profile every level here except Angels, Demons, Saints and Miracles is taken as already known and kept as a refresher: open any of them when you want to revisit the ground, and unmark one if you would rather work through it.",
+  method: "Read Scripture and the Church's own texts first; a historian or theologian is there to explain them. Where Catholics, Orthodox and Protestants differ, each is stated in its own terms. The one required level is the specialized one, because angelology and demonology are the Christian material the later traditions keep reaching for.",
   levels: [
-  { id: "1", t: "The Old Testament", era: ["anc"], tier: "foundation", hrs: 35, carry: ["xth.1"], xq: "xth.1",
+  { id: "1", t: "The Old Testament", era: ["anc"], tier: "foundation", hrs: 35, prior: 1, opt: "ref", carry: ["xth.1"], xq: "xth.1",
     desc: "The shape of the Bible, creation and fall, covenant and law, the prophets and wisdom, and the Psalms as Israel's and the Church's prayer.",
     u: ["xth|The shape of the Bible", "xth|Creation and fall", "xth|Covenant and law", "xth|The prophets and wisdom", "xth|The Psalms"],
     r: [["noab", "CORE", "Genesis 1–12, Exodus 1–24, Deuteronomy 5–6 and 18, Isaiah 6 and 40–55, Job 38–42, Proverbs 8, Psalms 1, 8, 19, 22, 51, 104 and 139"], ["kugel2007", "RECOMMENDED", "the chapters on Genesis and Exodus"], ["alter1981", "OPTIONAL", ""], ["barton2019", "OPTIONAL", ""]],
     req: [], tk: "explain", task: "In about 400 words, explain what Genesis 1–3 teaches about creation, the human being as image of God, and the Fall, using the text's own words; then say how 'creation' in Genesis differs from 'emanation' as later Platonists used the word." },
-  { id: "2", t: "The New Testament", era: ["anc", "late"], tier: "foundation", hrs: 40, carry: ["xth.2"], xq: "xth.2",
+  { id: "2", t: "The New Testament", era: ["anc", "late"], tier: "foundation", hrs: 40, prior: 1, opt: "ref", carry: ["xth.2"], xq: "xth.2",
     desc: "Jesus in the four Gospels, Paul and the early churches, the canon, Revelation, the Church's ways of reading Scripture, and what Scripture says about the stars, magic and divination.",
     u: ["xth|Jesus in the Gospels", "xth|Paul and the early churches", "xth|The making of the canon", "xth|Revelation and apocalyptic", "xth|Reading Scripture: the senses and the rule of faith", "xth|Reading Scripture: modern criticism and faith", "xth|Scripture on the stars, magic and divination"],
     r: [["noab", "CORE", "the four Gospels, Acts, Romans, 1 Corinthians, Philippians 2, Colossians 1 and Revelation"], ["ehrman2023", "REQUIRED", "the chapters on the Synoptic Gospels, John and Paul, for historical context"], ["augdoctrina", "RECOMMENDED", "Books I–III, on how the Church reads Scripture"], ["hays2014", "OPTIONAL", ""], ["deiverbum", "OPTIONAL", "a short official Catholic statement on Scripture"]],
     req: [["xth.1", ""]], tk: "explain", task: "In about 400 words, explain the four senses of Scripture (literal, allegorical, moral, anagogical) using one passage you have read, as Augustine or the medieval Church would have read it." },
-  { id: "3", t: "God, Trinity and Christ", era: ["late", "hmed"], tier: "intermediate", hrs: 40, carry: ["xth.3"],
+  { id: "3", t: "God, Trinity and Christ", era: ["late", "hmed"], tier: "intermediate", hrs: 40, prior: 1, opt: "ref", carry: ["xth.3"],
     desc: "What the Creeds say and why: the rule of faith against the Gnostics, the Trinity at Nicaea, the person of Christ at Chalcedon, the Incarnation, kenosis and the Resurrection, and how Aquinas speaks of God, creation and providence.",
     u: ["xth|Irenaeus and the Gnostics", "xth|Nicaea and the Trinity", "xth|Christology: Ephesus and Chalcedon", "xth|Incarnation, kenosis and resurrection", "xth|Aquinas: faith and reason", "xth|Aquinas on God, creation and providence"],
     r: [["creeds", "CORE", "the Nicene-Constantinopolitan Creed and the Definition of Chalcedon, both complete"], ["athanasius", "REQUIRED", "the whole treatise"], ["ratzinger1968", "RECOMMENDED", "Part I and the chapters on the Creed's articles about God and Christ"], ["wilken2003", "RECOMMENDED", "the chapters on the Trinity and Christ"], ["kelly1977", "REFERENCE", "for any doctrine's history"], ["irenaeus", "OPTIONAL", "Book I.10 and Book III"]],
     req: [["xth.2", ""]], tk: "passage", task: "Interpret the Definition of Chalcedon in the Church's own terms. In about 500 words, explain 'one person in two natures, without confusion, without change, without division, without separation', what each phrase guards against, and how Athanasius's On the Incarnation explains why God became man." },
-  { id: "4", t: "Fall, Grace and Salvation", era: ["late", "hmed", "ren"], tier: "intermediate", hrs: 40, carry: ["xth.4"],
+  { id: "4", t: "Fall, Grace and Salvation", era: ["late", "hmed", "ren"], tier: "intermediate", hrs: 40, prior: 1, opt: "ref", carry: ["xth.4"],
     desc: "How Christians have understood sin, grace and salvation: the Fathers on deification, Augustine on grace, Boethius on providence and freedom, Anselm on the atonement, Aquinas on grace and the virtues, Luther on justification by faith, and Trent's reply.",
     u: ["xth|Salvation in the Fathers", "xth|Augustine: grace, sin and the two cities", "xth|Boethius: providence, fate and freedom", "xth|Anselm: faith seeking understanding", "xth|Grace, merit and the virtues", "xth|Luther and justification by faith", "xth|Trent and the Catholic Reform"],
     r: [["anselm", "REQUIRED", "Why God Became Man"], ["luther1520", "REQUIRED", "the whole treatise"], ["trent", "REQUIRED", "the whole decree"], ["boethius", "RECOMMENDED", "Books IV–V, on providence and freedom"], ["jddj", "RECOMMENDED", "the whole text: where Lutherans and Catholics now agree"], ["mcgrath2012", "OPTIONAL", ""], ["calvin", "OPTIONAL", "Book III, chapters 1–2 and 11"]],
     req: [["xth.3", ""]], tk: "distinguish", task: "Explain a disagreement fairly from both sides. In about 600 words, set out how Luther's Freedom of a Christian and Trent's Decree on Justification each understand faith, grace and good works, in each one's own vocabulary, and say what the Joint Declaration of 1999 claims they now share." },
-  { id: "5", t: "Sacrament, Liturgy and the Church", era: ["late", "hmed", "mod"], tier: "intermediate", hrs: 30, carry: ["xth.6"],
+  { id: "5", t: "Sacrament, Liturgy and the Church", era: ["late", "hmed", "mod"], tier: "intermediate", hrs: 30, prior: 1, opt: "ref", carry: ["xth.6"],
     desc: "Baptism and the Eucharist, the seven sacraments, the liturgy and the Christian year as mystery, the division of East and West, and the Orthodox vision of the Church and the world.",
     u: ["xth|Baptism, Eucharist and the Church", "xth|The seven sacraments", "xmys|Liturgy and sacrament", "xmys|The year as mystery", "xth|East and West divide", "xth|Orthodoxy after Byzantium", "xth|Modern Orthodox theology"],
     r: [["schmemann1963", "REQUIRED", "the whole book"], ["ware2015", "RECOMMENDED", "Part II, on Orthodox faith and worship"], ["lumen", "OPTIONAL", "Lumen Gentium, chapters 1–2"]],
@@ -11769,8 +11812,8 @@ C("xth", { name: "Christianity: Scripture, Creed and Sacrament", short: "Christi
     desc: "The Christian unseen world: the fall of the angels, the nine choirs of Dionysius, Aquinas on the nature of angels and demons, and the saints, relics and miracles of the Church's life.",
     u: ["angel|Fallen angels: from the Watchers to the demons", "angel|The Dionysian hierarchies", "angel|Aquinas on angels", "xth|Saints and miracles"],
     r: [["dionysius", "CORE", "The Celestial Hierarchy"], ["aquinasST", "REQUIRED", "I, qq. 50–51 (what an angel is) and 63–64 (the demons' sin and punishment)"], ["keck1998", "RECOMMENDED", "the whole book"], ["reed2005", "OPTIONAL", "chapters 1 and 6"]],
-    req: [["xth.3", ""]], tk: "explain", task: "In about 400 words, explain the nine choirs of angels as Dionysius orders them, what he means by 'hierarchy', and why the demons fell according to Aquinas." },
-  { id: "7", t: "The Church's Story: Divisions and Renewals", era: ["late", "hmed", "ren", "c17", "c18", "c19", "mod"], tier: "advanced", hrs: 30, opt: "rec", carry: ["xth.5", "xth.7"],
+    req: [], tk: "explain", task: "In about 400 words, explain the nine choirs of angels as Dionysius orders them, what he means by 'hierarchy', and why the demons fell according to Aquinas." },
+  { id: "7", t: "The Church's Story: Divisions and Renewals", era: ["late", "hmed", "ren", "c17", "c18", "c19", "mod"], tier: "advanced", hrs: 30, prior: 1, opt: "ref", carry: ["xth.5", "xth.7"],
     desc: "A short map of the Church through time: the apostolic Fathers, the scholastics and Franciscans, the humanists and Reformers, the Jesuits, the Enlightenment's critique, and the twentieth-century renewals.",
     u: ["xth|The apostolic Fathers", "xth|The scholastic method", "xth|Franciscans, nominalism and the late Middle Ages", "xth|Erasmus and the humanist Bible", "xth|Zwingli, Calvin and the Reformed", "xth|The radical Reformation", "xth|Baroque Catholicism and the Jesuits", "xth|Enlightenment and the critique of religion", "xth|Schleiermacher, Newman and the 19th century", "xth|Barth and the 20th-century renewal", "xth|Vatican II and ecumenism"],
     r: [["chadwick1967", "RECOMMENDED", "the whole book"], ["mcgrath2012", "RECOMMENDED", "chapters 1–3"], ["barth1963", "OPTIONAL", ""], ["lewis1952", "OPTIONAL", "a popular statement of shared Christian belief"], ["omalley1993", "OPTIONAL", ""], ["pelikan1978", "OPTIONAL", ""]],
@@ -11801,7 +11844,7 @@ C("xmys", { name: "Christian Mysticism", short: "Christian Mysticism", glyph: "�
     desc: "What Christian mysticism is, the mystics' Scripture, the three ways of purification, illumination and union, the kataphatic and apophatic paths, and lectio divina.",
     u: ["xmys|What Christian mysticism is", "xmys|The mystics' Scripture", "xmys|The three ways", "xmys|Kataphatic and apophatic", "xmys|Lectio divina"],
     r: [["mcginn2006", "REQUIRED", "the introduction and Part I: an anthology of the mystics' own words"], ["louth2007", "RECOMMENDED", "the whole book"], ["mcginn1991", "OPTIONAL", "the General Introduction"], ["underhill1911", "OPTIONAL", "a classic of 1911, read as such"]],
-    req: [["xth.2", ""]], tk: "explain", task: "In about 400 words, explain the three ways (purgative, illuminative, unitive) and the difference between the kataphatic and apophatic paths, with one example of each from the anthology." },
+    req: [], tk: "explain", task: "In about 400 words, explain the three ways (purgative, illuminative, unitive) and the difference between the kataphatic and apophatic paths, with one example of each from the anthology." },
   { id: "2", t: "Origen, Gregory of Nyssa and Augustine", era: ["late"], tier: "intermediate", hrs: 35, carry: ["xmys.2"],
     desc: "Origen's reading of the Song of Songs and the three books of Solomon, Gregory of Nyssa's endless ascent into the darkness where God is, and Augustine's vision at Ostia.",
     u: ["xmys|Philo, Clement and Origen", "xmys|Origen's three books", "xmys|Gregory of Nyssa", "xmys|Augustine at Ostia"],
@@ -11860,36 +11903,39 @@ C("xmys", { name: "Christian Mysticism", short: "Christian Mysticism", glyph: "�
   ] });
 
 /* ================= JUDAISM AND KABBALAH ================= */
-C("jew", { name: "Judaism: the World Kabbalah Grew From", short: "Judaism", glyph: "✡", group: "Judaism and Kabbalah",
-  intro: "Enough of Judaism that Kabbalah is never severed from it: the Torah as Jews read it, the Second Temple and the rabbis, the prayer book and the year, and the medieval philosophers and pietists the first Kabbalists answered.",
-  method: "Read the Tanakh as Jews read it, not as a Christian Old Testament.",
+C("jew", { name: "Jewish Mystical Foundations: the Bridge to Kabbalah", short: "Jewish Bridge", glyph: "✡", group: "Judaism and Kabbalah",
+  intro: "Only the Jewish material you need to understand Kabbalah responsibly: the chariot and its restrictions, the ascent literature, and the step from the Merkavah to the sefirot. The general introduction to Torah, Talmud and the Jewish year is kept as a refresher, and medieval Jewish philosophy as an elective.",
+  method: "This course assumes you already know the Tanakh, the prophets and the shape of Jewish history. It teaches the mystical line alone. Kabbalah is a Jewish tradition and is studied inside Judaism, not beside it.",
   levels: [
-  { id: "1", t: "Torah and Its Jewish Reading", era: ["anc"], tier: "foundation", hrs: 25, carry: ["jew.1"], xq: "jew.1",
-    desc: "Torah, Prophets and Writings; law and narrative; Ezekiel's chariot; peshat and derash.",
-    u: ["jew|Torah, Nevi'im, Ketuvim", "jew|Law and narrative in the Torah", "jew|Ezekiel's chariot", "jew|Peshat and derash"],
-    r: [["jsb2014", "CORE", "Genesis 1–3, Exodus 19–24, Leviticus 19, Ezekiel 1 and Isaiah 6, with the essays on Jewish interpretation"], ["holtz1984", "RECOMMENDED", "the chapters on Bible and Midrash"]],
-    req: [], tk: "explain", task: "In about 400 words, explain peshat and derash with one example of each, and why the Kabbalists later added remez and sod." },
-  { id: "2", t: "Second Temple, Rabbis and Prayer", era: ["anc", "late"], tier: "foundation", hrs: 35, carry: ["jew.2", "jew.3"],
-    desc: "1 Enoch and the Watchers, the angelic liturgy of the Dead Sea Scrolls, Philo, the Mishnah and the Oral Torah, the Talmuds and Midrash, and the prayer book and Jewish year.",
-    u: ["jew|From exile to the Second Temple", "jew|1 Enoch and the Watchers", "jew|The Dead Sea Scrolls and the angelic liturgy", "jew|Philo of Alexandria", "jew|The Mishnah and the Oral Torah", "jew|The Talmuds", "jew|Midrash", "jew|Liturgy and the Jewish year"],
-    r: [["enoch2012", "REQUIRED", "1 Enoch 1–36, the Book of the Watchers"], ["steinsaltz1976", "REQUIRED", "the whole book"], ["holtz1984", "REQUIRED", "the chapters on Talmud and the prayer book"], ["neusner1988", "RECOMMENDED", "tractate Hagigah, chapter 2"], ["vermes2011", "RECOMMENDED", "the Songs of the Sabbath Sacrifice"], ["collins2016", "OPTIONAL", ""], ["strack1996", "REFERENCE", ""]],
-    req: [["jew.1", ""]], tk: "explain", task: "In about 400 words, explain what the Oral Torah is in rabbinic Judaism and how Mishnah, Talmud and Midrash relate to the written Torah, then say what Mishnah Hagigah 2:1 restricts and why." },
-  { id: "3", t: "Medieval Jewish Philosophy and Pietism", era: ["hmed"], tier: "intermediate", hrs: 30, carry: ["jew.5"],
-    desc: "Saadia, Judah Halevi, Maimonides' Guide and his negative theology, and the pietists of Ashkenaz: the world the first Kabbalists answered.",
+  { id: "1", t: "The Chariot, the Orchard and the Ascent", era: ["anc", "late", "emed"], tier: "foundation", hrs: 35, carry: ["jew.2"],
+    xq: "jew.4", desc: "Ezekiel's throne vision as the tradition read it, the Watchers and the angelic liturgy where they contribute, the orchard and the rabbinic restriction on expounding the chariot, the descenders to the chariot and the Hekhalot texts, and the step from all of this toward the sefirot.",
+    u: ["jew|Ezekiel's chariot", "jew|1 Enoch and the Watchers", "jew|The Dead Sea Scrolls and the angelic liturgy", "kab|The orchard", "kab|The work of creation and the work of the chariot", "kab|The descenders to the chariot", "jew|Hekhalot texts and their problems", "jew|From the chariot to the sefirot"],
+    r: [["davila2013", "CORE", "Hekhalot Rabbati, complete: the ascent, the adjurations and the hymns"], ["schafer1992", "REQUIRED", "the chapters on the Hekhalot and on the divine body"], ["enoch2012", "RECOMMENDED", "1 Enoch 1–36, the Book of the Watchers, and 14 in particular (the throne vision)"], ["jsb2014", "RECOMMENDED", "Ezekiel 1–3 and 10, with the notes"], ["neusner1988", "RECOMMENDED", "Hagigah, chapter 2"], ["vermes2011", "OPTIONAL", "the Songs of the Sabbath Sacrifice"], ["halperin1988", "SPECIALIST", ""], ["schafer2009", "SPECIALIST", ""]],
+    req: [], tk: "explain",
+    task: "In about 500 words, explain what the Hekhalot texts describe a descender to the chariot doing: the preparation, the ascent through the palaces, the dangers at the gates, and the use of names and seals. Then say what Mishnah Hagigah 2:1 restricts, and why." },
+  { id: "2", t: "Torah, Talmud and the Rabbinic World", era: ["anc", "late"], tier: "foundation", hrs: 40, opt: "ref", prior: 1, carry: ["jew.1"],
+    xq: ["jew.1", "jew.2"], desc: "A refresher, taken as already known: Torah, Prophets and Writings as Jews read them, peshat and derash, the Second Temple world, Philo, the Mishnah and Oral Torah, the Talmuds, Midrash, and the prayer book and the Jewish year.",
+    u: ["jew|Torah, Nevi'im, Ketuvim", "jew|Law and narrative in the Torah", "jew|Peshat and derash", "jew|From exile to the Second Temple", "jew|Philo of Alexandria", "jew|The Mishnah and the Oral Torah", "jew|The Talmuds", "jew|Midrash", "jew|Liturgy and the Jewish year"],
+    r: [["holtz1984", "RECOMMENDED", "the chapters on Bible, Midrash, Talmud and the prayer book"], ["steinsaltz1976", "RECOMMENDED", "the whole book"], ["jsb2014", "REFERENCE", "the essays on Jewish interpretation"], ["strack1996", "REFERENCE", ""], ["collins2016", "OPTIONAL", ""]],
+    req: [], tk: "explain",
+    task: "In about 400 words, explain the difference between peshat and derash with one example of each, and why the Kabbalists later added remez and sod." },
+  { id: "3", t: "Medieval Jewish Philosophy", era: ["hmed"], tier: "intermediate", hrs: 30, opt: "rec", carry: ["jew.3"],
+    xq: "jew.5", desc: "Elective. Saadia, Judah Halevi, Maimonides and his negative theology, and the pietists of Ashkenaz: the intellectual world the first Kabbalists answered. Useful background to Kabbalah, not a gate to it.",
     u: ["jew|Saadia and the Geonic age", "jew|Judah Halevi's Kuzari", "jew|Maimonides' Guide of the Perplexed", "kab|The pietists of Ashkenaz"],
-    r: [["maimonides", "REQUIRED", "the Introduction, I.1–5, I.50–60 and III.51"], ["halevi", "RECOMMENDED", "Part IV"], ["sirat1985", "RECOMMENDED", "the chapters on Halevi and Maimonides"], ["saadia", "OPTIONAL", ""], ["marcus1981", "OPTIONAL", ""]],
-    req: [["jew.2", ""]], tk: "explain", task: "In about 400 words, explain Maimonides' teaching that we can say only what God is not, and why the Kabbalists' sefirot answer the same question differently." }
+    r: [["maimonides", "RECOMMENDED", "the Introduction, I.1–5, I.50–60 (the negative attributes) and III.51"], ["sirat1985", "RECOMMENDED", "the chapters on Halevi and Maimonides"], ["halevi", "OPTIONAL", "Part IV"], ["saadia", "OPTIONAL", ""], ["marcus1981", "OPTIONAL", ""]],
+    req: [], tk: "explain",
+    task: "In about 400 words, explain Maimonides' teaching that we can say only what God is not, and how the Kabbalists' sefirot answer the same problem in the opposite way." }
   ] });
-
 C("kab", { name: "Kabbalah: the Jewish Tradition", short: "Kabbalah", glyph: "א", group: "Judaism and Kabbalah",
-  intro: "Jewish Kabbalah as it developed: the chariot and the Book of Formation behind it, the Bahir and the first Kabbalists of Provence and Gerona, the Zohar, Gikatilla and the divine names, Abulafia's prophetic Kabbalah, Cordovero and Safed, Luria and Vital, and Hasidism.",
+  intro: "Jewish Kabbalah as it developed: Sefer Yetzirah behind it, the Bahir and the first Kabbalists of Provence and Gerona, the Zohar, Gikatilla and the divine names, Abulafia's prophetic Kabbalah, Cordovero and Safed, Luria and Vital, and Hasidism. The chariot tradition it grew out of is taught in the Jewish Bridge course.",
   method: "Each school is taught through its own texts and concepts: Ein Sof, the sefirot, the Shekhinah, the names, Torah and mitzvot, kavvanah, devekut, tikkun. Jewish Kabbalah, Christian Cabala and Hermetic Qabalah are three different things; this course is the first.",
   levels: [
-  { id: "1", t: "Before Kabbalah: the Chariot and the Book of Formation", era: ["late", "emed"], tier: "foundation", hrs: 35, carry: ["jew.4"],
-    desc: "The orchard and the two esoteric subjects, the descenders to the chariot and the Hekhalot texts, and Sefer Yetzirah's thirty-two paths, ten sefirot and twenty-two letters.",
-    u: ["kab|The orchard", "kab|The work of creation and the work of the chariot", "kab|The descenders to the chariot", "jew|Hekhalot texts and their problems", "kab|The Book of Formation, I", "kab|The Book of Formation, II", "jew|Sefer Yetzirah: dating and recensions"],
-    r: [["kaplan1990", "CORE", "the text complete, with Kaplan's commentary on chapter 1 (a traditional commentary, read as such)"], ["davila2013", "REQUIRED", "Hekhalot Rabbati"], ["schafer1992", "RECOMMENDED", "the whole book"], ["hayman2004", "SPECIALIST", ""], ["halperin1988", "OPTIONAL", ""]],
-    req: [["jew.2", ""]], tk: "explain", task: "In about 400 words, explain the structure of Sefer Yetzirah in its own terms: the thirty-two paths, the ten sefirot belimah, and the three mothers, seven doubles and twelve simples, and what the book says they are for." },
+  { id: "1", t: "Sefer Yetzirah: the Book of Formation", era: ["late", "emed"], tier: "foundation", hrs: 30, carry: [], xq: "jew.4",
+    desc: "The oldest book of Jewish esoteric speculation: the thirty-two paths of wisdom, the ten sefirot belimah, the twenty-two letters as the elements of creation, and the problems of its date and its recensions.",
+    u: ["kab|The Book of Formation, I", "kab|The Book of Formation, II", "jew|Sefer Yetzirah: dating and recensions"],
+    r: [["kaplan1990", "CORE", "the text complete, with Kaplan's commentary on chapter 1: a traditional commentary, read as such"], ["hayman2004", "RECOMMENDED", "the introduction, on what the earliest recoverable text looks like"], ["dan2006", "OPTIONAL", "the chapter on Sefer Yetzirah"]],
+    req: [["jew.1", "Sefer Yetzirah is read beside the chariot tradition it belongs with."]], tk: "explain",
+    task: "In about 400 words, explain the structure of Sefer Yetzirah in its own terms: the thirty-two paths, the ten sefirot belimah, and the three mothers, seven doubles and twelve simples, and what the book says they are for." },
   { id: "2", t: "The Bahir, Provence and Gerona: the Sefirot Emerge", era: ["hmed"], tier: "intermediate", hrs: 35, carry: ["kab.1"], xq: "kab.1",
     desc: "What Kabbalah is, the Bahir, the first Kabbalists of Provence, the circle of Gerona, Ein Sof, the ten sefirot as God's inner life, the names of God, and the commandments as acts that affect the divine.",
     u: ["kab|What Kabbalah is", "kab|The Bahir and the first Kabbalists", "kab|Gerona: Nahmanides, Azriel and Ezra", "kab|Ein Sof", "kab|The ten sephiroth", "kab|The sefirot as God's life", "kab|The names of God", "kab|Kabbalah and the commandments"],
@@ -11958,36 +12004,34 @@ C("xcab", { name: "Christian Cabala", short: "Christian Cabala", glyph: "✠", g
 
 /* ================= ANCIENT PHILOSOPHY AND THEURGY ================= */
 C("anc", { name: "Platonism and Theurgy", short: "Platonism & Theurgy", glyph: "Δ", group: "Ancient wisdom",
-  intro: "The philosophy that later mystics, Hermetists, astrologers and magicians assumed: Pythagoras and Plato, the cosmos of Aristotle and the Stoics, Plotinus's One, Intellect and Soul, and the theurgy of the Chaldean Oracles, Iamblichus and Proclus.",
-  method: "Read the philosophers themselves. Gregory Shaw and others explain Iamblichus; they are guides, not the tradition.",
+  intro: "The lineage later mystics, Hermetists, astrologers and magicians actually inherited: Plato's spiritual cosmos, Plotinus's One and the soul's return, and the theurgy of the Chaldean Oracles, Iamblichus and Proclus. Selected dialogues and treatises, not a survey of ancient philosophy.",
+  method: "Read the philosophers themselves, in the passages that later traditions lived on. The Complete Works of Plato and of Aristotle are reference volumes here, not assignments. Gregory Shaw explains Iamblichus's ritual logic; he is a guide, not the tradition.",
   levels: [
-  { id: "1", t: "Pythagoras and Plato", era: ["anc"], tier: "foundation", hrs: 40, carry: ["anc.2"],
-    desc: "The Pythagorean legend and number, harmony and the soul; Plato's Forms and the immortal soul, the ascent of eros, the cave and the Good, and the Timaeus's Demiurge and world-soul.",
-    u: ["anc|Pythagoras: legend and evidence", "anc|Number, harmony and the soul", "anc|Forms and the soul", "anc|Eros and ascent", "anc|The cave and the Good", "anc|The Timaeus"],
-    r: [["plato", "CORE", "Phaedo, Symposium, Republic VI–VII and Timaeus 27–47"], ["kahn2001", "RECOMMENDED", "the whole book"], ["cornford1937", "OPTIONAL", ""], ["krs1983", "REFERENCE", ""]],
-    req: [], tk: "passage", task: "Interpret Diotima's ladder of love (Symposium 210a–212a). In about 500 words, explain each step of the ascent and what is seen at the end, in Plato's own terms." },
-  { id: "2", t: "Aristotle and the Stoics: the Cosmos Everyone Assumed", era: ["anc"], tier: "foundation", hrs: 25, opt: "rec", carry: ["anc.3"], xq: "anc.3",
-    desc: "The four elements and their qualities, Aristotle's spheres and unmoved mover, soul and intellect, and the Stoic world of pneuma, sympathy and fate.",
-    u: ["anc|Empedocles' four roots", "anc|Aristotle's cosmos", "anc|Soul and intellect", "anc|Stoic cosmology: pneuma, sympathy, fate"],
-    r: [["aristotle", "REQUIRED", "On Generation and Corruption II.1–4 and Metaphysics XII.6–10"], ["longsedley", "RECOMMENDED", "the Stoic sections on god, fate and divination"]],
-    req: [["anc.1", ""]], tk: "explain", task: "In about 400 words, explain the four elements and four qualities, how one element turns into another, and why this made astrology and alchemy seem natural." },
-  { id: "3", t: "Plotinus: the One, Intellect and Soul", era: ["late"], tier: "intermediate", hrs: 40, carry: ["anc.4"],
-    desc: "Middle Platonism, Plotinus's three hypostases and the soul's return, Plotinus on the stars and magic, Porphyry, and what the Church Fathers took from Platonism and what they refused.",
+  { id: "1", t: "Plato and the Platonic Spiritual Cosmos", era: ["anc"], tier: "foundation", hrs: 40, carry: ["anc.1"],
+    xq: "anc.2", desc: "The Forms and the immortal soul, the ascent of love in the Symposium, the charioteer and the wings of the soul in the Phaedrus, the cave and the Good, and the Timaeus's Demiurge and world-soul.",
+    u: ["anc|Forms and the soul", "anc|Eros and ascent", "anc|Phaedrus: the charioteer and the wings of the soul", "anc|The cave and the Good", "anc|The Timaeus"],
+    r: [["plato", "CORE", "four dialogues, not the volume: the Symposium entire; the Phaedrus 243e–257b (the palinode); the Republic VI 507–VII 521 (sun, line and cave); and the Timaeus 27d–47e. The Phaedo if you want the argument for the soul's immortality"], ["cornford1937", "OPTIONAL", "the commentary on Timaeus 27–47, when the text resists you"]],
+    req: [], tk: "passage",
+    task: "Interpret Diotima's ladder of love (Symposium 210a–212a). In about 500 words, explain each step of the ascent and what is seen at the end, in Plato's own terms, and say how the Phaedrus's charioteer describes the same movement differently." },
+  { id: "2", t: "Plotinus and the Return", era: ["late"], tier: "intermediate", hrs: 40, carry: ["anc.3"],
+    xq: "anc.4", desc: "The One, Intellect and Soul; procession and return; contemplation as the soul's activity; Plotinus on beauty, on the stars and on magic; Porphyry; and what the Church Fathers took from Platonism and what they refused.",
     u: ["anc|Middle Platonism", "anc|Plotinus: the One, Intellect, Soul", "anc|Plotinus on the stars and magic", "anc|Porphyry", "xth|The Christian Platonists, and their limits"],
-    r: [["plotinus", "CORE", "Enneads I.6 (on beauty), V.1, VI.9 (on the Good or the One), II.3 and IV.4.30–45"], ["omeara1993", "RECOMMENDED", "the whole book"], ["dillon1996", "OPTIONAL", ""], ["wallis1972", "OPTIONAL", ""], ["plotinusLoeb", "SPECIALIST", ""]],
-    req: [["anc.1", ""]], tk: "passage", task: "Interpret Ennead VI.9.9–11 (the flight of the alone to the alone). In about 500 words, explain what union with the One is for Plotinus, how the soul prepares for it, and why he says it cannot be spoken." },
-  { id: "4", t: "The Chaldean Oracles and Iamblichus", era: ["late"], tier: "advanced", hrs: 45, carry: ["anc.5"],
-    desc: "The Chaldean Oracles, Iamblichus's reply to Porphyry, the symbols and tokens by which the gods are joined, and the daimones, heroes and angels between gods and souls.",
-    u: ["anc|The Chaldean Oracles", "anc|Iamblichus: the reply to Porphyry", "anc|Daimones and the intermediaries", "anc|Symbols and tokens: how theurgy works"],
-    r: [["iamblichus2003", "CORE", "Books I–III and V"], ["majercik1989", "REQUIRED", "the fragments in translation"], ["shaw1995", "REQUIRED", "Parts II–IV: the explanation of Iamblichus's ritual logic"], ["lewy1956", "SPECIALIST", ""]],
-    req: [["anc.3", ""]], tk: "passage", task: "Interpret De mysteriis II.11 ('it is not thought that joins theurgists to the gods... but the performance of ineffable works'). In about 500 words, explain why Iamblichus says ritual and symbols, not contemplation alone, unite the soul with the gods, using his own terms (synthēmata, symbola, theurgia)." },
-  { id: "5", t: "Proclus and the Hieratic Art", era: ["late"], tier: "advanced", hrs: 30, carry: [],
-    desc: "Proclus's system of procession and return, the chains of sympathy that run from each god through stones and plants, and theurgy's afterlife in Dionysius and Byzantium.",
-    u: ["anc|Proclus and the hieratic art", "anc|Theurgy's afterlife"],
-    r: [["proclus1963", "REQUIRED", "propositions 1–39 (procession and return) and 140–145 (the divine chains)"], ["shaw1995", "RECOMMENDED", "the chapter on Proclus and later theurgy"]],
-    req: [["anc.4", ""]], tk: "explain", task: "In about 400 words, explain how Proclus's 'chains' (seirai) let the heliotrope and the lotus share in the sun's power, and why this makes a hieratic art possible." }
+    r: [["plotinus", "CORE", "Enneads I.6 (beauty), V.1 (the three principal hypostases), VI.9 (the Good or the One), II.3 (whether the stars are causes) and IV.4.30–45 (sympathy and magic)"], ["omeara1993", "REQUIRED", "the whole book: a short guide written for exactly this reading"], ["dillon1996", "OPTIONAL", ""], ["wallis1972", "OPTIONAL", ""]],
+    req: [["anc.1", ""]], tk: "passage",
+    task: "Interpret Ennead VI.9.9–11 (the flight of the alone to the alone). In about 500 words, explain what union with the One is for Plotinus, how the soul prepares for it, and why he says it cannot be spoken." },
+  { id: "3", t: "Iamblichus, the Chaldean Oracles and Proclus", era: ["late"], tier: "advanced", hrs: 50, carry: ["anc.4", "anc.5"],
+    xq: "anc.5", desc: "The Chaldean Oracles and their world of fires and intermediaries; Iamblichus's reply to Porphyry and the reasons ritual rather than thought unites the soul to the gods; the daimones, heroes and angels between; the symbols and tokens; Proclus's chains of sympathy and the hieratic art; and theurgy's afterlife in Dionysius and Byzantium.",
+    u: ["anc|The Chaldean Oracles", "anc|Iamblichus: the reply to Porphyry", "anc|Daimones and the intermediaries", "anc|Symbols and tokens: how theurgy works", "anc|Proclus and the hieratic art", "anc|Theurgy's afterlife"],
+    r: [["iamblichus2003", "CORE", "Books I–III and V: the kinds of superior beings, how they appear, and the defence of sacrifice and ritual"], ["majercik1989", "REQUIRED", "the fragments in translation, with the introduction: representative surviving verses, not the scholarship"], ["shaw1995", "REQUIRED", "Parts II–IV, which explain the ritual logic"], ["proclus1963", "RECOMMENDED", "propositions 1–39 (procession and return) and 140–145 (the divine chains)"], ["lewy1956", "SPECIALIST", "the great specialist study, for a chosen specialization only"]],
+    req: [["anc.2", ""]], tk: "passage",
+    task: "Interpret De mysteriis II.11 ('it is not thought that joins theurgists to the gods... but the performance of ineffable works'). In about 500 words, explain why Iamblichus holds that ritual and symbols, not contemplation alone, unite the soul with the gods, using his own terms: synthēmata, symbola, theurgia." },
+  { id: "4", t: "Before and Around Plato: Pythagoras, Aristotle and the Stoics", era: ["anc"], tier: "foundation", hrs: 30, opt: "rec", carry: ["anc.2"],
+    xq: ["anc.1", "anc.3"], desc: "Elective context: the Pythagorean legend, number and harmony, Empedocles' four roots, Aristotle's cosmos and unmoved mover, and the Stoic world of pneuma, sympathy and fate. Useful background to astrology and alchemy; not a gate to Iamblichus.",
+    u: ["anc|Pythagoras: legend and evidence", "anc|Number, harmony and the soul", "anc|Empedocles' four roots", "anc|Aristotle's cosmos", "anc|Soul and intellect", "anc|Stoic cosmology: pneuma, sympathy, fate"],
+    r: [["kahn2001", "RECOMMENDED", "the whole book"], ["aristotle", "RECOMMENDED", "two texts, not the volume: On Generation and Corruption II.1–4 (the elements) and Metaphysics XII.6–10 (the unmoved mover)"], ["longsedley", "OPTIONAL", "the Stoic sections on god, fate and divination"], ["krs1983", "REFERENCE", "for any Presocratic fragment"], ["burkert1972", "SPECIALIST", ""]],
+    req: [], tk: "explain",
+    task: "In about 400 words, explain the four elements and their qualities, how one element turns into another, and why this made both astrology and alchemy seem natural within ancient physics." }
   ] });
-
 /* ================= HERMETISM ================= */
 C("herm", { name: "Hermetism", short: "Hermetism", glyph: "☤", group: "Ancient wisdom",
   intro: "The writings of Hermes Trismegistus in their own world, Greco-Roman Egypt: the Poimandres and the way of Hermes, rebirth, the Asclepius, the Discourse on the Eighth and the Ninth; then, separately, the Renaissance revival.",
@@ -12012,95 +12056,126 @@ C("herm", { name: "Hermetism", short: "Hermetism", glyph: "☤", group: "Ancient
 
 /* ================= ASTROLOGY ================= */
 C("astro", { name: "Astrology", short: "Astrology", glyph: "☉", group: "The arts",
-  intro: "The astrological systems themselves, in the order they arose: Mesopotamian celestial divination, the Hellenistic horoscope and its techniques, Persian and Arabic astrology, Ibn Ezra and the Latin West, Renaissance astrology, Lilly's horary, and modern and psychological astrology.",
-  method: "Learn each system in its own terms and keep them apart: a Hellenistic lot is not a modern 'point', and Lilly's horary is not Rudhyar's person-centred chart. The theological debates about fate, providence and freedom are taught where they arose. Chart work you may want to try yourself is in the separate practice module.",
+  intro: "The living art first, then its ancestry. Two levels teach you to read a modern natal chart; the rest trace where every part of it came from, from the Hellenistic horoscope through Baghdad, Ibn Ezra, Ficino and Lilly, and return at the end to the chart you began with.",
+  method: "Levels I and II teach modern Western astrology and the vocabulary most living schools share, and say so plainly rather than blending systems. From Level III the history runs in order, each period in its own terms, so that you can see which part of your chart is ancient, which medieval, which a nineteenth-century addition and which a twentieth-century reinterpretation. The Mesopotamian origins are an optional level at the end for anyone who wants them in detail.",
   levels: [
-  { id: "1", t: "Mesopotamian Sky-Omens", era: ["anc"], tier: "foundation", hrs: 30, same: 1, xq: "astro.1",
-    desc: "The sky seen from Earth, the planets, the two lights and the Moon's phases, retrograde motion, the omen series Enuma Anu Enlil, the invention of the zodiac and the first horoscopes.",
-    u: ["astro|The sky from Earth", "astro|The planets", "astro|The two lights", "astro|The Moon and its phases", "astro|Retrograde motion", "astro|Enuma Anu Enlil and the scholars of Nineveh", "astro|The invention of the zodiac", "astro|From omens to horoscopes"],
-    r: [["koch1995", "REQUIRED", "the whole book, with its translated omens"], ["rochberg2004", "RECOMMENDED", "chapters 1–4"], ["campion2008", "OPTIONAL", ""], ["hunger1999", "SPECIALIST", ""]],
-    req: [], tk: "explain", task: "In about 400 words, explain how a Mesopotamian celestial omen worked (the sign, the protasis and apodosis, who it was for, what could be done about it), and how it differs from a Hellenistic horoscope." },
-  { id: "2", t: "The Hellenistic Horoscope: Its Grammar", era: ["anc"], tier: "foundation", hrs: 45, same: 1, xq: "astro.2",
-    desc: "What astrology claimed, the Hellenistic synthesis, the seven planets, elements, modalities and signs, rulership and dignity, houses, aspects, and the planetary days and hours.",
-    u: ["astro|What astrology claims", "astro|The Hellenistic synthesis", "astro|Mercury, Venus and Mars", "astro|Jupiter and Saturn", "astro|The four elements", "astro|The three modalities", "astro|The twelve signs", "astro|The six axes", "astro|Rulership and dignity", "astro|The houses and the rising sign", "astro|The twelve houses, one by one", "astro|Aspects: geometry of the sky", "astro|Orbs, applying and separating", "astro|Days and hours of the planets"],
-    r: [["ptolemy", "CORE", "Book I"], ["valens", "REQUIRED", "Book I"], ["brennan2017", "RECOMMENDED", "the chapters on planets, signs and houses (a practitioner's history)"], ["barton1994", "OPTIONAL", ""], ["beck2007", "OPTIONAL", ""]],
-    req: [["anc.1", "The Hellenistic cosmos is Plato's and Aristotle's."]], tk: "passage", task: "Interpret Tetrabiblos I.4–8 (the natures of the planets). In about 500 words, explain how Ptolemy derives each planet's nature from heat, cold, moisture and dryness, and what makes a planet benefic or malefic in his system." },
-  { id: "3", t: "Hellenistic Techniques: Reading a Nativity", era: ["anc", "late"], tier: "intermediate", hrs: 45, same: 1, xq: "astro.3",
-    desc: "Sect, the lots, triplicity rulers, bounds and faces, accidental dignity, aspects by sign, profections, releasing and firdaria, Ptolemy's natural philosophy, house systems, and a method for reading a nativity.",
+  { id: "1", t: "The Chart: Planets, Signs and Houses", era: ["mod"], tier: "foundation", hrs: 40,
+    desc: "What a natal chart is and how to read its parts: the sky as seen from Earth, the planets and the two lights, retrogradation, the chart wheel and its angles, the twelve signs with their elements and modalities, the ascendant and the twelve houses, the modern outer planets and the lunar nodes.",
+    u: ["astro|The sky from Earth", "astro|The planets", "astro|The two lights", "astro|The Moon and its phases", "astro|Retrograde motion", "astro|The chart wheel: what you are looking at", "astro|The twelve signs", "astro|The four elements", "astro|The three modalities", "astro|The houses and the rising sign", "astro|The twelve houses, one by one", "astro|Uranus, Neptune and Pluto", "astro|The lunar nodes"],
+    r: [["march1976", "CORE", "the whole volume: a standard modern Western teaching text, worked through with its exercises"], ["hand1981", "RECOMMENDED", "the chapters on the planets, signs and houses"], ["forrest1984", "RECOMMENDED", "the first half: the same grammar in a psychological key"], ["brennan2017", "OPTIONAL", "the chapters on signs and houses, to see where a traditional astrologer differs from the modern textbook"]],
+    req: [], tk: "explain",
+    task: "Get your own chart from any free calculator and read it. In about 500 words, state your Sun, Moon and Ascendant by sign and house, the sign on each angle, and the house of every planet; then explain in your own words what three of those placements are held to mean in modern Western astrology, and name the element and modality that dominate your chart." },
+  { id: "2", t: "Aspects, Rulers and Reading a Modern Chart", era: ["mod"], tier: "foundation", hrs: 35,
+    desc: "Aspects and orbs, applying and separating, rulership and dignity at an introductory level, transits, how a modern astrologer moves from parts to a reading, and which school is speaking when.",
+    u: ["astro|Aspects: geometry of the sky", "astro|Orbs, applying and separating", "astro|Rulership and dignity", "astro|Transits", "astro|Putting it together: a modern natal reading", "astro|Which astrology is this? The modern schools"],
+    r: [["march1976", "CORE", "the chapters on aspects, rulership and chart synthesis"], ["hand1976", "RECOMMENDED", "the introduction and the sections on the outer-planet transits"], ["forrest1984", "OPTIONAL", "the chapters on aspects"], ["cornelius1994", "OPTIONAL", "chapters 1–4, on what an astrologer thinks a chart is"]],
+    req: [["astro.1", ""]], tk: "practice",
+    task: "Read your own chart, or a well-documented one, as the level describes: the shape of the whole, the Sun, Moon and Ascendant, the chart ruler and where it sits, what stands out, the aspect patterns, then the houses. Write about 600 words, name every technique you use, and say at the end which school's method you have been following." },
+  { id: "3", t: "The Hellenistic Horoscope", era: ["anc"], tier: "intermediate", hrs: 35, carry: ["astro.2"],
+    desc: "Where the chart came from, in short; then the Hellenistic system in its own terms: what it claimed, how it was assembled, the natures of the planets, the axes of the houses, and the planetary days and hours.",
+    u: ["astro|Where this astrology came from", "astro|What astrology claims", "astro|The Hellenistic synthesis", "astro|Mercury, Venus and Mars", "astro|Jupiter and Saturn", "astro|The six axes", "astro|Days and hours of the planets"],
+    r: [["ptolemy", "CORE", "Book I"], ["valens", "REQUIRED", "Book I"], ["brennan2017", "RECOMMENDED", "the chapters on the origins and on the planets"], ["barton1994", "OPTIONAL", ""], ["beck2007", "OPTIONAL", ""]],
+    req: [["astro.2", ""]], tk: "passage",
+    task: "Interpret Tetrabiblos I.4–8 (the natures of the planets). In about 500 words, explain how Ptolemy derives each planet's nature from heat, cold, moisture and dryness, what makes a planet benefic or malefic in his system, and where this differs from the modern textbook you began with." },
+  { id: "4", t: "Hellenistic Techniques: Reading a Nativity", era: ["anc", "late"], tier: "intermediate", hrs: 45, carry: ["astro.3"],
+    desc: "Sect, the lots, triplicity rulers, bounds and faces, accidental dignity, aspects by sign, profections, releasing and firdaria, Ptolemy's natural philosophy, house systems, and the older method of reading a nativity.",
     u: ["astro|Sect: day and night", "astro|The Lots: Fortune and Spirit", "astro|Triplicity rulers", "astro|Bounds and faces", "astro|Accidental dignity", "astro|Hellenistic aspects", "astro|Profections", "astro|Zodiacal releasing and firdaria", "astro|Ptolemy's natural philosophy", "astro|House systems", "astro|Reading a birth chart: a method"],
     r: [["dorotheus2017", "REQUIRED", "Book I"], ["valens", "REQUIRED", "Books II and IV"], ["ptolemy", "RECOMMENDED", "Books III–IV"], ["george2019", "OPTIONAL", "a practitioner's workbook"], ["dorotheus1976", "SPECIALIST", ""]],
-    req: [["astro.2", ""]], tk: "practice", task: "Reconstruct how a Hellenistic astrologer would begin reading a nativity: determine sect, find the Lot of Fortune and its ruler, judge the condition of the luminaries, and use profections to find the year's lord. Work through one chart (yours or a famous one) in about 600 words, naming each technique's source." },
-  { id: "4", t: "Late Antiquity, Persia and Baghdad", era: ["late", "emed"], tier: "intermediate", hrs: 35, same: 1, xq: "astro.4",
-    desc: "The Magi and the early Church, Augustine and the twins, Masha'allah and Abu Ma'shar, great conjunctions and the ages of history, fixed stars and lunar mansions, precession and the two zodiacs.",
+    req: [["astro.3", ""]], tk: "practice",
+    task: "Take the chart you read in Level II and read it again as a Hellenistic astrologer would: determine sect, find the Lot of Fortune and its ruler, judge the condition of the luminaries, and use profections to find the lord of the current year. About 600 words, naming each technique's source, and ending with what the two readings disagree about." },
+  { id: "5", t: "Late Antiquity, Persia and Baghdad", era: ["late", "emed"], tier: "intermediate", hrs: 35, carry: ["astro.4"],
+    desc: "The Magi and the early Church, Augustine and the twins, Masha'allah and Abu Ma'shar, great conjunctions and the ages of history, fixed stars and lunar mansions, precession and the two zodiacs. The astrology that will feed directly into astral magic.",
     u: ["astro|The Magi and the early Church", "astro|Augustine and the twins", "astro|Baghdad: Masha'allah and Abu Ma'shar", "astro|Great conjunctions and the ages of history", "astro|Fixed stars and lunar mansions", "astro|Precession and the two zodiacs"],
     r: [["abumashar1994", "CORE", "the whole book"], ["augcity", "REQUIRED", "Book V, chapters 1–8"], ["campion2009", "OPTIONAL", ""], ["pingree1997", "OPTIONAL", ""], ["abumashar2019", "SPECIALIST", ""]],
-    req: [["astro.3", ""]], tk: "distinguish", task: "Explain the disagreement fairly from both sides. In about 600 words, set out Augustine's arguments against astrology in City of God V.1–8, including the twins, and how an astrologer in Abu Ma'shar's tradition would answer them." },
-  { id: "5", t: "Ibn Ezra and the Medieval Latin West", era: ["hmed", "lmed"], tier: "intermediate", hrs: 35, same: 1, xq: "astro.5",
-    desc: "Abraham ibn Ezra's Hebrew astrology, Bonatti and the Latin handbooks, Aquinas's 'the stars incline, they do not compel', medical astrology and elections.",
+    req: [["astro.3", ""]], tk: "distinguish",
+    task: "Explain the disagreement fairly from both sides. In about 600 words, set out Augustine's arguments against astrology in City of God V.1–8, including the twins, and how an astrologer in Abu Ma'shar's tradition would answer them." },
+  { id: "6", t: "Ibn Ezra and the Medieval Latin West", era: ["hmed", "lmed"], tier: "intermediate", hrs: 35, carry: ["astro.5"],
+    desc: "Abraham ibn Ezra's Hebrew astrology, Bonatti and the Latin handbooks, Aquinas's 'the stars incline, they do not compel', medical astrology and the art of elections, which the magicians will need.",
     u: ["astro|Abraham ibn Ezra's astrology", "astro|Bonatti and the Latin handbooks", "astro|Aquinas: the stars incline but do not compel", "astro|Medical astrology", "astro|Electional astrology"],
     r: [["sela2017", "CORE", "The Beginning of Wisdom, chapters 1–2"], ["aquinasST", "REQUIRED", "I, q. 115, a. 4 and II-II, q. 95, a. 5"], ["bonatti", "OPTIONAL", "Tractates I–II"], ["sela2003", "OPTIONAL", ""], ["wedel1920", "OPTIONAL", ""]],
-    req: [["astro.4", ""]], tk: "explain", task: "In about 400 words, explain what an electional astrologer did: what was chosen, what had to be strong or weak, and why Aquinas allowed some elections and forbade others." },
-  { id: "6", t: "Renaissance Astrology: Ficino, Pico and Kepler", era: ["ren"], tier: "advanced", hrs: 35, same: 1, xq: "astro.6",
-    desc: "Ficino's astrological medicine for the soul, Pico's Disputations against astrology, Cardano and the horoscope of Christ, and Kepler's reform.",
+    req: [["astro.5", ""]], tk: "explain",
+    task: "In about 400 words, explain what an electional astrologer did: what was chosen, what had to be strong or weak at the chosen moment, and why Aquinas allowed some elections and forbade others." },
+  { id: "7", t: "Renaissance Astrology: Ficino, Pico and Kepler", era: ["ren"], tier: "advanced", hrs: 35, carry: ["astro.6"],
+    xq: "astro.6", desc: "Ficino's astrological medicine for the soul and the planetary spirituality the magicians inherited, Pico's Disputations against astrology, Cardano and the horoscope of Christ, and Kepler's reform.",
     u: ["astro|Ficino's astrological medicine of the soul", "astro|Pico's Disputations against astrology", "astro|Cardano and the horoscope of Christ", "astro|Kepler's reform"],
-    r: [["ficinolife", "CORE", "Book III"], ["grafton1999", "RECOMMENDED", "the whole book"], ["picodisp", "SPECIALIST", "Book I"], ["kepler1601", "OPTIONAL", ""]],
-    req: [["astro.5", ""], ["anc.3", "Ficino's astrology rests on Plotinus."]], tk: "practice", task: "Reconstruct one of Ficino's remedies from Three Books on Life III (for example, how to draw the favour of Jupiter or the Sun): the timing, the materials, colours, music and images, and Ficino's account of why it works through the world-spirit. About 500 words." },
-  { id: "7", t: "William Lilly and Horary Astrology", era: ["c17"], tier: "advanced", hrs: 35, same: 1, xq: "astro.7",
-    desc: "Horary astrology, Lilly's Christian Astrology (1647), and astrology in the English Revolution.",
+    r: [["ficinolife", "CORE", "Book III"], ["grafton1999", "RECOMMENDED", "the whole book"], ["agrippa1993", "RECOMMENDED", "Book II, chapters 22–37, on the celestial numbers, images and talismans"], ["picodisp", "SPECIALIST", "Book I"], ["kepler1601", "OPTIONAL", ""]],
+    req: [["astro.6", ""]], tk: "practice",
+    task: "Reconstruct one of Ficino's remedies from Three Books on Life III (for example, how to draw the favour of Jupiter or of the Sun): the timing, the materials, colours, music and images, and Ficino's account of why it works through the world-spirit. About 500 words." },
+  { id: "8", t: "William Lilly and Horary Astrology", era: ["c17"], tier: "advanced", hrs: 35, carry: ["astro.7"],
+    xq: "astro.7", desc: "Horary astrology, Lilly's Christian Astrology (1647), and astrology in the English Revolution.",
     u: ["astro|Horary astrology", "astro|Lilly's Christian Astrology", "astro|Astrology and the English Revolution"],
     r: [["lilly1647", "CORE", "Book I (the introduction) and the horary examples in Book II"], ["curry1989", "RECOMMENDED", ""], ["geneva1995", "OPTIONAL", ""]],
-    req: [["astro.6", ""]], tk: "practice", task: "Reconstruct how Lilly judges a horary question, using one of his own examples from Christian Astrology: the querent and quesited, their significators, the considerations before judgment, the perfection or denial, and the timing. About 500 words, in Lilly's own terms." },
-  { id: "8", t: "Modern and Psychological Astrology", era: ["c18", "c19", "mod"], tier: "advanced", hrs: 35, same: 1, xq: "astro.8",
-    desc: "The fall and the revival, Alan Leo and theosophical astrology, the outer planets, transits, progressions and returns, Rudhyar and psychological astrology, and astrology as a contemplative language.",
-    u: ["astro|The fall and the revival", "astro|Alan Leo and theosophical astrology", "astro|Uranus, Neptune and Pluto", "astro|Transits", "astro|Progressions and returns", "astro|Rudhyar and psychological astrology", "astro|Astrology as a contemplative language"],
-    r: [["rudhyar1936", "REQUIRED", "Part I"], ["march1976", "RECOMMENDED", "a standard modern textbook"], ["cornelius1994", "RECOMMENDED", "chapters 1–4, on astrology as divination"], ["campion2009", "OPTIONAL", ""], ["forrest1984", "OPTIONAL", ""], ["hand1976", "OPTIONAL", ""], ["hand1981", "OPTIONAL", ""], ["greene1976", "OPTIONAL", ""], ["tarnas2006", "OPTIONAL", ""]],
-    req: [["astro.7", ""]], tk: "distinguish", task: "Compare how Ptolemy and Rudhyar each explain what a chart is and why it means anything. In about 600 words, explain each in his own terms, and identify exactly what modern psychological astrology changed." },
-  { id: "9", t: "Astrology and the Evidence", era: ["mod"], tier: "advanced", hrs: 10, same: 1, opt: "rec", xq: "astro.9",
-    desc: "A short module: what the empirical tests of astrology found, and what a test can and cannot show about a practice of interpretation.",
+    req: [["astro.6", ""]], tk: "practice",
+    task: "Reconstruct how Lilly judges a horary question, using one of his own examples from Christian Astrology: the querent and quesited, their significators, the considerations before judgment, the perfection or denial, and the timing. About 500 words, in Lilly's own terms." },
+  { id: "9", t: "How We Got to the Modern Chart", era: ["c18", "c19", "mod"], tier: "advanced", hrs: 35, carry: ["astro.8"],
+    desc: "The fall and the revival, Alan Leo and theosophical astrology, progressions and returns, Rudhyar and psychological astrology, astrology as a contemplative language, and an explicit return to the chart you learned in Level I: what in it is ancient, what medieval, what nineteenth-century and what twentieth.",
+    u: ["astro|The fall and the revival", "astro|Alan Leo and theosophical astrology", "astro|Progressions and returns", "astro|Rudhyar and psychological astrology", "astro|Astrology as a contemplative language"],
+    r: [["rudhyar1936", "REQUIRED", "Part I"], ["campion2009", "RECOMMENDED", "the chapters from the eighteenth century on"], ["cornelius1994", "RECOMMENDED", "on astrology as divination, against the modern 'influence' model"], ["hand1976", "OPTIONAL", ""], ["greene1976", "OPTIONAL", ""], ["tarnas2006", "OPTIONAL", ""]],
+    req: [["astro.8", ""]], tk: "distinguish",
+    task: "Go back to the chart you read in Level II. In about 600 words, take six elements of that reading (for example the outer planets, the nodes as a growth axis, psychological sign meanings, degree-based aspects, the chart ruler, the Ascendant) and say for each which historical layer it comes from: Hellenistic, medieval, Renaissance, nineteenth-century occult or twentieth-century psychological." },
+  { id: "10", t: "Astrology and the Evidence", era: ["mod"], tier: "advanced", hrs: 10, opt: "rec", carry: ["astro.9"],
+    xq: "astro.9", desc: "A short module: what the empirical tests of astrology found, and what a test can and cannot show about a practice of interpretation.",
     u: ["astro|The evidence", "astro|What a test can and cannot show"],
     r: [["carlson1985", "RECOMMENDED", "the whole article"], ["dean2003", "OPTIONAL", ""]],
-    req: [["astro.8", ""]], tk: "explain", task: "In about 300 words, explain what Carlson's test claimed to show and what an astrologer like Cornelius would say it misunderstands about astrology." }
+    req: [["astro.9", ""]], tk: "explain",
+    task: "In about 300 words, explain what Carlson's test claimed to show, and what an astrologer like Cornelius would say it misunderstands about what astrology is." },
+  { id: "11", t: "Mesopotamian Celestial Divination", era: ["anc"], tier: "intermediate", hrs: 30, opt: "rec", carry: ["astro.1"],
+    desc: "Elective, for the origins in detail: the omen series Enuma Anu Enlil and the scholars of Nineveh, the invention of the zodiac, and the transition from omens to the first personal horoscopes.",
+    u: ["astro|Enuma Anu Enlil and the scholars of Nineveh", "astro|The invention of the zodiac", "astro|From omens to horoscopes"],
+    r: [["koch1995", "RECOMMENDED", "the whole book, with its translated omens"], ["rochberg2004", "RECOMMENDED", "chapters 1–4"], ["campion2008", "OPTIONAL", ""], ["hunger1999", "SPECIALIST", ""]],
+    req: [], tk: "explain",
+    task: "In about 400 words, explain how a Mesopotamian celestial omen worked (the sign, the protasis and apodosis, who it was for, what could be done about it), and how it differs from the horoscope you have learned to read." }
   ],
-  practice: [{ id: "chart", t: "Practice: reading charts", desc: "Exercises in reading your own chart and the sky. Practice, separate from study; no level requires it.", req: ["astro.3"], u: ["astro|Reading today's sky", "astro|Building a daily practice", "astro|Capstone: your chart, whole"] }] });
-
+  practice: [{ id: "chart", t: "Practice: reading charts", desc: "Exercises in reading your own chart and the sky. Practice, separate from study; no level requires it.", req: ["astro.2"], u: ["astro|Reading today's sky", "astro|Building a daily practice", "astro|Capstone: your chart, whole"] }] });
 /* ================= TAROT ================= */
 C("tarot", { name: "Tarot", short: "Tarot", glyph: "✶", group: "The arts",
-  intro: "The tarot first as a fifteenth-century Italian card game and its images, then the esoteric systems built on it: Court de Gébelin and Etteilla, Lévi, the Golden Dawn, Waite, Crowley and Case, Tomberg, and modern practice.",
-  method: "No Kabbalah, astrology or alchemy enters before Level III, because the cards had none of them until 1781. Each later system is taught in its own symbolic logic, not as one timeless tarot doctrine.",
+  intro: "The living art first: one level teaches you to read a modern deck. Then the genealogy, which answers why that deck looks the way it does: the fifteenth-century card game, the images, Court de Gébelin and Etteilla, Lévi, the Golden Dawn, Waite, Crowley and Case, Tomberg, and today.",
+  method: "Level I teaches the Rider–Waite–Smith system and says from the first page that it is a modern occult tarot of about 1909, not what a fifteenth-century card meant. Everything after it is historical, and each layer is kept distinct, so that by the end you can say which of the meanings you learned belongs to which century.",
   levels: [
-  { id: "1", t: "Playing Cards and the Invention of the Trumps", era: ["lmed", "ren"], tier: "foundation", hrs: 20, same: 1, xq: "tarot.1",
-    desc: "Cards come to Europe, the structure of the deck, the triumphs of Milan, and the triumph procession.",
+  { id: "1", t: "Reading a Modern Tarot Deck", era: ["mod"], tier: "foundation", hrs: 35,
+    desc: "The seventy-eight cards and how they are arranged; the Rider–Waite–Smith system and what it is not; the Major Arcana as a modern reader uses them; suits, elements and numbers; the court cards; how a reader moves from image to meaning; a three-card spread, and reversals as an option rather than a rule.",
+    u: ["tarot|A modern deck: seventy-eight cards", "tarot|The Rider–Waite–Smith system, and what it is not", "tarot|The Major Arcana in modern reading", "tarot|The minors: suits, elements and numbers", "tarot|The courts as people and modes", "tarot|From image to meaning: how a reading works", "tarot|A three-card spread, and reversals"],
+    r: [["waite1910", "CORE", "the whole book: the system's own source, written by the man who commissioned the deck"], ["pollack1997", "REQUIRED", "the whole book: the standard modern teaching text for this deck"], ["greer1984", "RECOMMENDED", "the exercises, if you want to work with the cards yourself"], ["wen2015", "OPTIONAL", "a contemporary practitioner's handbook"]],
+    req: [], tk: "practice",
+    task: "Take a Rider–Waite–Smith deck (or its images online), draw three cards for a question you define, and write the reading out in about 500 words: say what each position asked, what each card's received meaning is, what in the picture you are using, how the neighbours change it, and what the three say together. Then add two sentences naming which parts of your reading come from the modern occult layer rather than from the cards' own history." },
+  { id: "2", t: "Playing Cards and the Invention of the Trumps", era: ["lmed", "ren"], tier: "foundation", hrs: 20, carry: ["tarot.1"],
+    desc: "Where the deck actually came from: cards arrive in Europe, the structure of the pack, the triumphs of Milan, and the triumph procession that explains their order.",
     u: ["tarot|Cards come to Europe", "tarot|The structure of the deck", "tarot|The triumphs of Milan", "tarot|The triumph procession"],
     r: [["farley2009", "REQUIRED", "chapters 1–3"], ["dummett1986", "RECOMMENDED", "for the Visconti-Sforza cards themselves"], ["moakley1966", "OPTIONAL", ""], ["dummett1980", "SPECIALIST", ""]],
-    req: [], tk: "explain", task: "In about 400 words, explain what the trumps were in fifteenth-century Italy, how the game was played, and how Moakley's reading of them as a triumph procession explains their order." },
-  { id: "2", t: "Iconography: Trumps, Suits and Courts", era: ["ren", "c17"], tier: "foundation", hrs: 30, same: 1, xq: "tarot.2",
-    desc: "The Marseille pattern, the Sola Busca and the minors, the major trumps in three movements, the four suits, the pips and the court cards.",
+    req: [["tarot.1", ""]], tk: "explain",
+    task: "In about 400 words, explain what the trumps were in fifteenth-century Italy, how the game was played, and how Moakley's reading of them as a triumph procession explains their order. Then say what this shows about the Egyptian and Kabbalistic origin stories." },
+  { id: "3", t: "Iconography: Trumps, Suits and Courts", era: ["ren", "c17"], tier: "foundation", hrs: 30, carry: ["tarot.2"],
+    desc: "The Marseille pattern, the Sola Busca and the illustrated minors, the major trumps in three movements, the four suits, the pips and the court cards as the old decks drew them.",
     u: ["tarot|The Marseille pattern", "tarot|The Sola Busca and the minors", "tarot|The majors I: the powers", "tarot|The majors II: the turning", "tarot|The majors III: the descent and the light", "tarot|The four suits", "tarot|Ace to Ten", "tarot|The court cards"],
     r: [["kaplan1978", "REFERENCE", "for images of the historical decks"]],
-    req: [["tarot.1", ""]], tk: "explain", task: "In about 400 words, read three Marseille trumps as a sixteenth-century viewer would have seen them, from their Christian and courtly imagery alone, without later occult meanings." },
-  { id: "3", t: "The Esoteric Tarot Is Born: Court de Gébelin, Etteilla and Lévi", era: ["c18", "c19"], tier: "intermediate", hrs: 30, same: 1, xq: "tarot.3",
-    desc: "Court de Gébelin's Egyptian Book of Thoth, Etteilla's cartomancy, and Lévi's linking of the trumps to the Hebrew letters.",
+    req: [["tarot.2", ""]], tk: "explain",
+    task: "In about 400 words, read three Marseille trumps as a sixteenth-century viewer would have seen them, from their Christian and courtly imagery alone, and say for each how the meaning you learned in Level I differs from it." },
+  { id: "4", t: "The Esoteric Tarot Is Born: Court de Gébelin, Etteilla and Lévi", era: ["c18", "c19"], tier: "intermediate", hrs: 30, carry: ["tarot.3"],
+    xq: "tarot.3", desc: "Court de Gébelin's Egyptian Book of Thoth, Etteilla's cartomancy and the first printed meanings, and Lévi's pairing of the trumps with the Hebrew letters.",
     u: ["tarot|The Egyptian myth", "tarot|Etteilla, the first cartomancer", "tarot|Éliphas Lévi and the letters"],
     r: [["gebelin1781", "REQUIRED", "the tarot essay"], ["levi1856", "REQUIRED", "the chapters that pair each trump with a Hebrew letter"], ["ddd1996", "REQUIRED", "chapters 1–8"], ["etteilla", "SPECIALIST", ""]],
-    req: [["tarot.2", ""]], tk: "distinguish", task: "In about 500 words, identify exactly what Court de Gébelin, Etteilla and Lévi each added to the cards, and where each claimed antiquity for something new." },
-  { id: "4", t: "The Golden Dawn, Waite, Crowley and Case", era: ["c19", "mod"], tier: "intermediate", hrs: 45, same: 1, xq: "tarot.4",
-    desc: "The Golden Dawn's tarot and Book T, decans and the minor arcana, elemental dignities, the Rider–Waite–Smith and Thoth decks, Pamela Colman Smith, Crowley and Frieda Harris, the swaps of Strength and Justice, the courts as elements of elements, Paul Foster Case, the Tree of Life, and the Opening of the Key.",
+    req: [["tarot.3", ""]], tk: "distinguish",
+    task: "In about 500 words, identify exactly what Court de Gébelin, Etteilla and Lévi each added to the cards, where each claimed antiquity for something new, and which of the three your Level I reading was relying on." },
+  { id: "5", t: "The Golden Dawn, Waite, Crowley and Case", era: ["c19", "mod"], tier: "intermediate", hrs: 45, carry: ["tarot.4"],
+    desc: "The Golden Dawn's Book T, the decans and the minor arcana, elemental dignities, the Rider–Waite–Smith and Thoth decks, Pamela Colman Smith, Crowley and Frieda Harris, the swaps of Strength and Justice, the courts as elements of elements, Paul Foster Case, the Tree of Life and the Opening of the Key.",
     u: ["tarot|The Golden Dawn's tarot", "tarot|Decans and the minor arcana", "tarot|Elemental dignities", "tarot|Rider–Waite–Smith and Thoth", "tarot|Pamela Colman Smith", "tarot|The Fool's journey", "tarot|Crowley and Lady Frieda Harris", "tarot|The two swaps", "tarot|The court cards as elements of elements", "tarot|Paul Foster Case and BOTA", "tarot|The tarot and the Tree of Life", "tarot|The Opening of the Key"],
-    r: [["waite1910", "CORE", "the whole book"], ["regardie1937", "REQUIRED", "Book T"], ["crowley1944", "REQUIRED", "Part I and the Atu"], ["case1947", "RECOMMENDED", ""], ["dd2002", "RECOMMENDED", "for the history"], ["pollack1997", "OPTIONAL", ""], ["duquette2003", "OPTIONAL", ""], ["wang1983", "OPTIONAL", ""]],
-    req: [["tarot.3", ""], ["occ.3", "The tarot's correspondences come from the Golden Dawn."]], tk: "passage", task: "Interpret one trump in three systems: the Golden Dawn's Book T, Waite's Pictorial Key and Crowley's Book of Thoth. In about 500 words, give each system's letter, path and meaning, and explain the symbolic logic behind each." },
-  { id: "5", t: "Tomberg's Meditations on the Tarot", era: ["mod"], tier: "advanced", hrs: 30, same: 1, xq: "tarot.5",
+    r: [["regardie1937", "CORE", "Book T"], ["crowley1944", "REQUIRED", "Part I and the Atu"], ["waite1910", "REQUIRED", "reread now, against Book T, to see what Waite kept back"], ["case1947", "RECOMMENDED", ""], ["dd2002", "RECOMMENDED", "for the history"], ["duquette2003", "OPTIONAL", ""], ["wang1983", "OPTIONAL", ""]],
+    req: [["tarot.4", ""], ["occ.3", "The correspondences you learned are the Golden Dawn's."], ["kab.2", "To see what the Tree of Life is doing here, meet the Jewish sefirot first."]], tk: "passage",
+    task: "Interpret one trump in three systems: the Golden Dawn's Book T, Waite's Pictorial Key and Crowley's Book of Thoth. In about 500 words, give each system's letter, path and meaning, explain the symbolic logic behind each, and say which one the deck you read in Level I was teaching you." },
+  { id: "6", t: "Tomberg's Meditations on the Tarot", era: ["mod"], tier: "advanced", hrs: 30, carry: ["tarot.5"],
     desc: "Christian Hermeticism: the Magician as concentration without effort, the Hanged Man and Death, and the Fool and the World.",
     u: ["tarot|Tomberg and his Meditations", "tarot|The Magician: concentration without effort", "tarot|The Hanged Man and Death in Tomberg", "tarot|Tomberg's Fool and World"],
     r: [["tomberg", "CORE", "Letters I, XII, XIII, XXI and XXII"]],
-    req: [["tarot.4", ""]], tk: "passage", task: "Interpret Tomberg's Letter I (the Magician). In about 500 words, explain 'concentration without effort', how he grounds it in Christian prayer, and how his Magician differs from the Golden Dawn's." },
-  { id: "6", t: "Modern Practice and Psychology", era: ["mod"], tier: "advanced", hrs: 15, same: 1, opt: "rec", xq: "tarot.6",
-    desc: "Why readings feel meaningful, spreads, reversals, and reading for others.",
+    req: [["tarot.5", ""]], tk: "passage",
+    task: "Interpret Tomberg's Letter I (the Magician). In about 500 words, explain 'concentration without effort', how he grounds it in Christian prayer, and how his Magician differs from the Golden Dawn's and from the card you learned in Level I." },
+  { id: "7", t: "Modern Practice, and Which Layer Is Which", era: ["mod"], tier: "advanced", hrs: 20, carry: ["tarot.6"],
+    desc: "Why readings feel meaningful, spreads, reversals and reading for others; and a final sorting of the deck you began with into its historical layers.",
     u: ["tarot|Why readings feel meaningful", "tarot|Spreads", "tarot|Reversals", "tarot|Reading for others"],
-    r: [["greer1984", "RECOMMENDED", ""], ["jungarch", "OPTIONAL", "the essay on archetypes"], ["wen2015", "OPTIONAL", ""]],
-    req: [["tarot.4", ""]], tk: "explain", task: "In about 400 words, explain how a modern psychological reading of the cards (Greer, or a Jungian) understands what happens in a reading, and how this differs from Etteilla's fortune-telling and Tomberg's meditation." }
+    r: [["greer1984", "RECOMMENDED", ""], ["jungarch", "OPTIONAL", "the essay on archetypes"], ["farley2009", "OPTIONAL", "the later chapters"]],
+    req: [["tarot.5", ""]], tk: "distinguish",
+    task: "Take six features of the modern reading you did in Level I (for example the suit–element assignments, the Fool's Journey, a trump's astrological meaning, the illustrated minors, reversals, the courts as psychological types) and say for each which layer it belongs to: the fifteenth-century game, Court de Gébelin or Etteilla, Lévi, the Golden Dawn, Waite, or twentieth-century psychology. About 600 words." }
   ],
-  practice: [{ id: "read", t: "Practice: working with the cards", desc: "Exercises with your own deck. Practice, separate from study; no level requires it.", req: ["tarot.2"], u: ["tarot|Keeping a tarot journal", "tarot|Reading the cards with the sky", "tarot|Designing your own spread", "tarot|Path-working", "tarot|Capstone: a year with the cards"] }] });
-
+  practice: [{ id: "read", t: "Practice: working with the cards", desc: "Exercises with your own deck. Practice, separate from study; no level requires it.", req: ["tarot.1"], u: ["tarot|Keeping a tarot journal", "tarot|Reading the cards with the sky", "tarot|Designing your own spread", "tarot|Path-working", "tarot|Capstone: a year with the cards"] }] });
 /* ================= ALCHEMY ================= */
 C("alch", { name: "Alchemy", short: "Alchemy", glyph: "☿", group: "The arts",
   intro: "What alchemists thought matter was and how it could be transformed: Greco-Egyptian alchemy and Zosimos, Arabic alchemy and the Emerald Tablet, pseudo-Geber and Latin alchemy, Paracelsus, the emblem books, Boyle and Newton, and finally the spiritual and psychological readings of the nineteenth and twentieth centuries.",
@@ -12163,7 +12238,7 @@ C("magic", { name: "Ritual Magic and the Grimoires", short: "Ritual Magic", glyp
     desc: "Image magic and talismans, al-Kindi's theory of rays, the Picatrix, and how a talisman is made: timing, materials, suffumigations and prayers to the planets.",
     u: ["magic|Image magic and talismans", "magic|Al-Kindi's theory of rays", "magic|The Picatrix", "magic|Making a talisman in the Picatrix"],
     r: [["attrell2019", "CORE", "Books I–III"], ["saif2015", "RECOMMENDED", "chapters 1–2"], ["burnett1996", "OPTIONAL", ""], ["pingree1986", "SPECIALIST", ""], ["dalverny1974", "SPECIALIST", ""]],
-    req: [["magic.1", ""], ["astro.2", "Astral magic presupposes the planets, signs and dignities."]], tk: "practice", task: "Reconstruct one planetary operation from Picatrix Book III (for example the prayer to Saturn or to Jupiter): the hour and the planet's condition, the clothing, offerings and suffumigations, the words, and what the operator expects to receive. Then explain in Picatrix's own terms why the spirit of the planet descends. About 600 words." },
+    req: [["magic.1", ""], ["astro.2", "Astral magic presupposes planets, signs, houses and dignity: the chart grammar of Levels I–II is enough to begin."]], tk: "practice", task: "Reconstruct one planetary operation from Picatrix Book III (for example the prayer to Saturn or to Jupiter): the hour and the planet's condition, the clothing, offerings and suffumigations, the words, and what the operator expects to receive. Then explain in Picatrix's own terms why the spirit of the planet descends. About 600 words." },
   { id: "4", t: "The Ars Notoria", era: ["hmed", "lmed"], tier: "intermediate", hrs: 30, carry: ["magic.4"], xq: "v4.magic.4",
     desc: "The Notory Art of Solomon: its angelic revelation, the orationes with their strange words, the notae contemplated with them, the lunar timetable, and the knowledge it promises.",
     u: ["magic|The Ars notoria", "magic|The notae and the prayers of the Ars notoria"],
@@ -12400,32 +12475,31 @@ C("mason", { name: "Freemasonry and Initiation", short: "Freemasonry", glyph: "�
 
 /* ================= SYNTHESIS CHECKPOINTS ================= */
 const QE = [
-  { id: "CP.1", t: "Checkpoint I: Foundations", from: ["xth.3", "jew.2", "anc.1", "xmys.1", "src.1"], era: ["anc", "late"],
-    desc: "Scripture and the Creed, Judaism of the Second Temple and the rabbis, Plato, and the first steps of Christian prayer.",
-    task: "In about 700 words: explain, each in its own terms, how Plato's Symposium, the Creed and rabbinic Judaism understand the relation between God (or the Good) and the world. Then name two ideas that later traditions in this school often confuse among them, and keep them apart." },
-  { id: "CP.2", t: "Checkpoint II: Late Antique Paths", from: ["anc.4", "herm.2", "xmys.3", "kab.1", "magic.1"], era: ["late"],
+  { id: "CP.1", t: "Checkpoint I: Foundations", from: ["jew.1", "anc.1", "xmys.1", "xth.6", "src.1"], era: ["anc", "late"],
+    desc: "The Jewish mystical bridge, Plato's cosmos, the beginning of Christian contemplation, the Christian unseen world, and reading traditions honestly.",
+    task: "In about 700 words: explain, each in its own terms, how Plato's Symposium, the Christian doctrine of angels and the Merkavah tradition each understand what stands between God and the world, and how a human being might approach it. Then name two ideas that later traditions in this school often confuse among them, and keep them apart." },
+  { id: "CP.2", t: "Checkpoint II: Late Antique Paths", from: ["anc.3", "herm.2", "xmys.3", "kab.1", "magic.1"], era: ["late"],
     desc: "Iamblichus's theurgy, the Hermetic way, the desert, the chariot and the Greek Magical Papyri.",
     task: "In about 700 words: describe the ascent of the soul in the Hermetic Discourse on the Eighth and the Ninth, in Iamblichus's theurgy, and in the Hekhalot texts, each in its own vocabulary. Where would it be a mistake to call them the same practice?" },
-  { id: "CP.3", t: "Checkpoint III: Medieval Paths", from: ["kab.5", "xmys.9", "magic.7", "astro.5", "disc.1"], era: ["hmed", "lmed"],
+  { id: "CP.3", t: "Checkpoint III: Medieval Paths", from: ["kab.5", "xmys.9", "magic.7", "astro.6", "disc.1"], era: ["hmed", "lmed"],
     desc: "Theosophical and prophetic Kabbalah, the medieval mystics, learned ritual magic, Latin astrology and the Church's judgments.",
     task: "In about 700 words: distinguish three medieval ways of approaching God or the spirits that look alike from outside (for example the Ars notoria, Abulafia's letter combination and the prayer of the Cloud of Unknowing): their aims, means and justifications, in their own terms." },
   { id: "CP.4", t: "Checkpoint IV: Renaissance and Early Modern", from: ["xcab.3", "eno.5", "rose.2", "bohme.1", "kab.7", "magic.8"], era: ["ren", "c17"],
     desc: "Christian Cabala, Dee's angelic system, the Rosicrucians, Böhme, Luria and the Solomonic grimoires.",
     task: "In about 700 words: explain what Pico, Dee and Böhme each believed a human being could come to know of God, and by what means, each in his own terms. Then show one place where a later tradition merged things these three kept distinct." },
-  { id: "CP.5", t: "Checkpoint V: The Modern Currents", from: ["coen.3", "stm.3", "mart.2", "occ.4", "tarot.5", "eno.6"], era: ["c18", "c19", "mod"],
+  { id: "CP.5", t: "Checkpoint V: The Modern Currents", from: ["coen.3", "stm.3", "mart.2", "occ.4", "tarot.6", "eno.6"], era: ["c18", "c19", "mod"],
     desc: "Pasqually and Saint-Martin, Martinism, the Golden Dawn, Crowley, Tomberg and the modern Enochian work.",
     task: "In about 700 words: trace one line of inheritance (for example Pasqually to Saint-Martin to Papus, or Dee to the Golden Dawn to Crowley) and identify, at each step, what was received faithfully and what was reinterpreted." }
 ];
 
 /* ================= THE ROUTE: one suggested order through the whole school ================= */
 const ROUTE = [
-  ["Beginnings", ["src.1", "xth.1", "jew.1", "anc.1", "xmys.1", "xth.2", "lat.1", "heb.1"]],
-  ["Faith and the ancient world", ["xth.3", "jew.2", "anc.2", "anc.3", "herm.1", "xmys.2", "xmys.3", "astro.1", "astro.2", "alch.1", "magic.1", "lat.2", "heb.2", "CP.1"]],
-  ["Late antique paths", ["xth.4", "anc.4", "anc.5", "herm.2", "xmys.4", "xmys.5", "kab.1", "magic.2", "astro.3", "alch.2", "CP.2"]],
-  ["The Christian life and the unseen world", ["xth.5", "xth.6", "disc.1", "xmys.6", "xmys.7", "jew.3", "heb.3", "lat.3"]],
-  ["Medieval traditions", ["kab.2", "kab.3", "kab.4", "kab.5", "xmys.8", "xmys.9", "astro.4", "astro.5", "alch.3", "magic.3", "magic.4", "magic.5", "magic.6", "magic.7", "tarot.1", "tarot.2", "CP.3"]],
-  ["Renaissance and the early modern world", ["herm.3", "xcab.1", "xcab.2", "xcab.3", "kab.6", "kab.7", "xmys.10", "xmys.11", "astro.6", "astro.7", "alch.4", "alch.5", "eno.1", "eno.2", "eno.3", "eno.4", "eno.5", "magic.8", "magic.9", "rose.1", "rose.2", "rose.3", "bohme.1", "bohme.2", "xcab.4", "disc.2", "CP.4"]],
-  ["The eighteenth century to today", ["coen.1", "coen.2", "coen.3", "stm.1", "stm.2", "stm.3", "mart.1", "kab.8", "tarot.3", "occ.1", "occ.2", "occ.3", "mart.2", "tarot.4", "eno.6", "astro.8", "alch.7", "tarot.5", "occ.4", "CP.5"]]
+  ["Orientation and the living arts", ["src.1", "astro.1", "tarot.1", "xmys.1", "anc.1", "astro.2"]],
+  ["The Christian and Jewish mystical ground", ["xth.6", "xmys.2", "xmys.3", "jew.1", "anc.2", "herm.1", "disc.1", "CP.1"]],
+  ["Late antique paths and the first magic", ["anc.3", "herm.2", "xmys.4", "xmys.5", "kab.1", "magic.1", "magic.2", "astro.3", "alch.1", "CP.2"]],
+  ["Medieval traditions", ["kab.2", "kab.3", "kab.4", "astro.4", "astro.5", "astro.6", "magic.3", "magic.4", "magic.5", "magic.6", "magic.7", "xmys.6", "xmys.7", "alch.2", "alch.3", "kab.5", "xmys.8", "xmys.9", "CP.3"]],
+  ["Renaissance and the early modern world", ["herm.3", "astro.7", "xcab.1", "xcab.2", "xcab.3", "kab.6", "kab.7", "alch.4", "alch.5", "magic.8", "magic.9", "eno.1", "eno.2", "eno.3", "eno.4", "eno.5", "rose.1", "rose.2", "rose.3", "bohme.1", "bohme.2", "xcab.4", "xmys.10", "xmys.11", "astro.8", "disc.2", "CP.4"]],
+  ["The eighteenth century to today", ["coen.1", "coen.2", "coen.3", "stm.1", "stm.2", "stm.3", "mart.1", "kab.8", "tarot.2", "tarot.3", "tarot.4", "occ.1", "occ.2", "occ.3", "tarot.5", "mart.2", "eno.6", "astro.9", "alch.6", "alch.7", "tarot.6", "tarot.7", "occ.4", "CP.5"]]
 ];
 
 /* a two-column table of forms and meanings, rows appearing one by one (used by the new Learn units) */
@@ -15770,6 +15844,204 @@ XQ["v4.occ.1"] = [
  ["Whom did Lévi claim to have evoked in London in 1854?", ["Hermes Trismegistus", "Apollonius of Tyana", "Moses", "Cagliostro"], 1, ""],
  ["What does Lévi say the magician's will must be?", ["Passive", "Trained and unwavering, directed by intelligence", "Inherited", "Given by a spirit"], 1, ""]];
 
+/* =================== v5 units: modern chart literacy, modern tarot, Phaedrus, the bridge =================== */
+
+/* ---- Astrology: the modern working chart ---- */
+U("astro", "The chart wheel: what you are looking at", "A circle, twelve divisions, a ring of signs and a scatter of glyphs.",
+`<p>A natal chart is a map of the sky at one moment from one place on Earth. Everything in it hangs on three things: <b>when</b> you were born, <b>where</b>, and the fact that the sky turns.</p>
+<ul><li><b>The wheel</b> is the ecliptic, the Sun's apparent yearly path, drawn as a circle. It is divided twice over: by the twelve <b>signs</b> (a band fixed to the seasons, starting at the spring equinox) and by the twelve <b>houses</b> (a band fixed to your horizon, turning once a day).</li>
+<li><b>The angles</b> are the cross of the chart. The <b>Ascendant</b> (ASC) is the degree of the ecliptic rising on the eastern horizon at your birth: it begins the first house, on the left. Opposite it is the <b>Descendant</b> (DSC). The <b>Midheaven</b> (MC) is the highest point, usually at the top, beginning the tenth house; opposite is the <b>Imum Coeli</b> (IC).</li>
+<li><b>The glyphs</b> inside the wheel are the planets, each at a degree of a sign and so in a house. Lines drawn between them are the <b>aspects</b>.</li></ul>
+<p>Conventionally the chart is drawn <b>counter-clockwise</b> from the Ascendant, and the signs run counter-clockwise too, so a planet rising moves up over the eastern horizon toward the Midheaven through the course of the day.</p>
+<p>Two births on the same day have nearly the same planets in signs; two births two hours apart have a different Ascendant and therefore a different distribution of houses. This is why astrologers ask for the birth time.</p>`,
+"The signs are fixed to the seasons and turn once a year; the houses are fixed to your horizon and turn once a day. The birth time is what tells them apart.",
+[["What is the Ascendant?", ["The sign the Sun is in", "The degree of the ecliptic rising on the eastern horizon at birth", "The highest point of the chart", "The Moon's position"], 1, "It begins the first house."],
+ ["Why does an astrologer want the birth time?", ["To know the Sun sign", "Because the houses and angles turn once a day, so a few hours change the whole house structure", "For numerology", "It is not needed"], 1, "The signs barely move in a day; the houses move constantly."],
+ ["Which angle begins the tenth house?", ["The Ascendant", "The Midheaven", "The Descendant", "The Imum Coeli"], 1, "MC, the highest point."]],
+{ fig: { k: "flow", items: ["Date → planets in signs", "Time and place → Ascendant", "Ascendant → the houses", "Planets land in houses", "Aspects join them"], c: "How a birth moment becomes a chart." } });
+
+U("astro", "The lunar nodes", "Where the Moon's path crosses the Sun's, and what modern astrologers make of it.",
+`<p>The Moon's orbit is tilted about five degrees to the ecliptic, so it crosses the Sun's path twice each circuit. Those two crossings are the <b>lunar nodes</b>: the <b>North Node</b> (☊, caput draconis, the Dragon's Head) where the Moon crosses going north, and the <b>South Node</b> (☋, cauda draconis, the Dragon's Tail) opposite it. They are always exactly opposed, and they move <b>backwards</b> through the zodiac, completing a circuit in about 18.6 years.</p>
+<p>Eclipses happen only when a New or Full Moon falls near a node, which is why the nodes mattered to every astrological tradition.</p>
+<p>What they are said to <i>mean</i> differs by school, and the difference is worth noticing early:</p>
+<ul><li><b>Traditional and medieval astrology</b> treated the Head as broadly increasing or amplifying and the Tail as decreasing, and judged them as influences on the planets they met.</li>
+<li><b>Modern and evolutionary astrology</b>, following the theosophical turn, reads them as an axis of <b>direction</b>: the South Node as what is familiar, inherited or easy, the North Node as the unfamiliar quality the person is drawn to develop. This reading is about a century old and rests on a doctrine of reincarnation that traditional Western astrology did not hold.</li></ul>
+<p>Charts also mark the <b>true</b> node (the actual oscillating position) or the <b>mean</b> node (its smoothed average); they differ by a degree or two.</p>`,
+"The nodes' modern 'past life / growth axis' reading is about a hundred years old. The nodes themselves are ancient; that meaning is not.",
+[["What are the lunar nodes?", ["The Moon's closest and furthest points", "The two points where the Moon's orbit crosses the ecliptic", "Two fixed stars", "The Moon's phases"], 1, "Always opposite each other."],
+ ["Why do eclipses relate to the nodes?", ["They have no relation", "An eclipse happens only when a New or Full Moon falls near a node", "The nodes cause them directly", "Only lunar eclipses relate"], 1, "Hence 'Dragon's Head and Tail'."],
+ ["The modern reading of the North Node as a direction of growth…", ["Goes back to Babylon", "Is roughly a century old and assumes reincarnation", "Comes from Ptolemy", "Comes from Lilly"], 1, "A theosophical development."]],
+{ fig: { k: "compare", a: "Traditional", ai: ["Head increases", "Tail decreases", "judged on the planets met"], b: "Modern / evolutionary", bi: ["South Node: the familiar", "North Node: the unfamiliar to grow toward", "assumes rebirth"], c: "One pair of points, two readings." } });
+
+U("astro", "Putting it together: a modern natal reading", "How a contemporary astrologer moves from a chart full of parts to a few sentences about a person.",
+`<p>Beginners read a chart as a list ('Sun in Libra, Moon in Aquarius, Mars in the sixth…'). Astrologers read it as a <b>structure</b>. A common modern working order:</p>
+<ol><li><b>Take in the shape.</b> Are the planets scattered or bunched? Is one hemisphere empty? Which element and modality dominate when you count them?</li>
+<li><b>Read the three lights of identity</b>: the <b>Sun</b> (the central purpose, what the life is organized around), the <b>Moon</b> (the inner life, need and reflex) and the <b>Ascendant</b> (the manner of meeting the world). Note each one's sign, house and condition.</li>
+<li><b>Find the chart ruler</b>: the planet that rules the Ascendant's sign. Where it sits is a strong statement about the life's direction.</li>
+<li><b>Look for what stands out</b>: a planet alone in a hemisphere, a tight stellium, an exact aspect, a planet on an angle, the most-aspected planet.</li>
+<li><b>Read the aspect patterns</b>, not single aspects: which planets are tied to which, and by what kind of aspect.</li>
+<li><b>Only then go house by house</b> for the areas of life.</li>
+<li><b>Synthesize</b>: say the same thing three different ways and see whether the chart keeps saying it. Repetition is the signal; a single placement is not.</li></ol>
+<p>Two cautions modern teachers repeat. A factor's meaning is <b>modified</b> by everything else, so no placement means one fixed thing; and a chart describes a <b>disposition</b>, not an event or a verdict.</p>`,
+"The rule modern teachers give: trust what the chart says three times, not what it says once.",
+[["What is the 'chart ruler'?", ["The strongest planet", "The planet that rules the sign on the Ascendant", "The Sun", "The planet in the tenth house"], 1, "Where it sits matters."],
+ ["What does an astrologer look for in synthesis?", ["A single decisive placement", "Themes that repeat across several independent factors", "The rarest aspect", "Only the Sun sign"], 1, "Repetition is the signal."],
+ ["In the order given, what comes before going house by house?", ["Nothing", "The shape, the lights and Ascendant, the chart ruler, what stands out, the aspect patterns", "The transits", "The nodes"], 1, "Structure before detail."]],
+{ fig: { k: "ladder", items: ["1 The shape of the whole", "2 Sun, Moon, Ascendant", "3 The chart ruler", "4 What stands out", "5 Aspect patterns", "6 House by house", "7 Synthesis"], c: "One common modern order of reading." } });
+
+U("astro", "Which astrology is this? The modern schools", "Several different arts share one vocabulary. Knowing which is speaking prevents most confusion.",
+`<p>Everything in these two levels is the <b>common grammar</b>: planets, signs, houses, angles, aspects, rulership. Almost every living school uses it. What the schools disagree about is what the grammar is <i>for</i>.</p>
+<ul><li><b>Modern Western astrology</b> (roughly Alan Leo onward, the textbooks of March & McEvers, Hand, Forrest): seven planets plus Uranus, Neptune and Pluto; sign rulerships reassigned to the outer planets (Scorpio to Pluto, Aquarius to Uranus, Pisces to Neptune); aspects read by degree with orbs; character and development the main subject.</li>
+<li><b>Psychological astrology</b> (Rudhyar, Liz Greene, Arroyo): the same, read through depth psychology; the chart as a map of the psyche and its individuation, not of outward fate.</li>
+<li><b>Evolutionary astrology</b> (Green, Forrest): adds reincarnation, with the nodes as the axis of the soul's intention.</li>
+<li><b>Traditional and Hellenistic astrology</b> (the revival since the 1990s: Brennan, Dykes, Hand's Project Hindsight): only the seven visible planets; the old rulerships; <b>sect</b>, the lots, bounds and triplicities; aspects by whole sign; timing by profections and releasing; concrete subject matter, and benefic and malefic taken seriously.</li>
+<li><b>Horary and electional</b>: the chart of a question or of a moment chosen to begin something, largely traditional in method (Lilly).</li></ul>
+<p>These are not interchangeable. A traditional astrologer and a modern one looking at the same chart may give opposite readings of Saturn, and both are being consistent within their own system. Daily Opus teaches this introduction as <b>modern Western astrology with its common vocabulary</b>, says so plainly, and then shows you where each element of it came from.</p>`,
+"Before you accept any interpretation, ask which school it comes from: Saturn means very different things to a traditional astrologer and to a psychological one.",
+[["Which school uses only the seven visible planets, sect and the lots?", ["Psychological astrology", "Traditional and Hellenistic astrology", "Evolutionary astrology", "Modern Western astrology"], 1, "The revival since the 1990s."],
+ ["What do modern astrologers do with Scorpio's rulership?", ["Leave it with Mars only", "Reassign it to Pluto, often keeping Mars as co-ruler", "Give it to Saturn", "Remove it"], 1, "The outer planets took three signs."],
+ ["What does this introduction teach?", ["A blend of every school", "Modern Western astrology and the vocabulary common to most schools, named as such", "Hellenistic astrology", "Vedic astrology"], 1, "Named, not silently blended."]],
+{ fig: { k: "rows", rows: [["Traditional", "7 planets, sect, lots"], ["Modern", "10 planets, character"], ["Psychological", "the chart as psyche"], ["Evolutionary", "the nodes as intention"]], c: "Four living schools, one shared grammar." } });
+
+U("astro", "Where this astrology came from", "A short orientation, before the Hellenistic system itself.",
+`<p>The chart you have just learned to read is a Greek invention of about the first century BCE, built on Babylonian materials, and it has been rebuilt several times since. In one paragraph each:</p>
+<ul><li><b>Mesopotamia</b> (from roughly the second millennium BCE) watched the sky for <b>omens</b>: a sign in the heavens announced something about the king and the land. These were read from the appearance and movements of the Moon, the planets, the weather and more, and collected in the great series <i>Enuma Anu Enlil</i>. The <b>zodiac</b> of twelve equal thirty-degree signs was devised there around the fifth century BCE as a measuring scheme, and the first horoscopes for individuals appear soon after.</li>
+<li><b>Hellenistic Egypt</b> (about the first century BCE) fused that material with Greek geometry, Aristotelian physics and Stoic sympathy, and produced something new: the <b>horoscopic chart</b>, cast for the moment of a birth, with an Ascendant, twelve houses, rulerships, aspects and techniques for timing a life. This is the system everything later in the West descends from.</li></ul>
+<p>The difference is not only technical. An omen is a <b>message</b> read off the sky for a community; a horoscope is a <b>map</b> of one person's life drawn from a moment. The first is divination by sign, the second a craft of interpretation with rules.</p>
+<p>This school treats the Mesopotamian material as background: there is an optional level on it at the end of this course for anyone who wants the origins in detail. What follows now is the Hellenistic system, because that is the one the rest of the West inherits.</p>`,
+"An omen is a message about a kingdom; a horoscope is a map of a person. The second was built out of the first's materials, but it is a different art.",
+[["Where and roughly when was the twelve-sign zodiac devised?", ["Greece, 1st c. BCE", "Mesopotamia, around the 5th c. BCE", "Egypt, 3rd c. CE", "Rome, 1st c. CE"], 1, "As a measuring scheme."],
+ ["What is the key difference between an omen and a horoscope?", ["None", "An omen is a sign read for a community; a horoscope maps one person's life from a moment", "Omens use planets, horoscopes do not", "Horoscopes are older"], 1, "Different arts."],
+ ["Where was the horoscopic chart assembled?", ["Babylon", "Hellenistic Egypt, about the 1st century BCE", "Baghdad, 9th century", "Renaissance Florence"], 1, "From Babylonian material and Greek philosophy."]],
+{ fig: { k: "flow", items: ["Mesopotamian omens", "the zodiac devised (5th c. BCE)", "first personal horoscopes", "Hellenistic Egypt: the chart", "everything later in the West"], c: "The short version of where your chart came from." } });
+
+/* ---- Tarot: the modern working deck ---- */
+U("tarot", "A modern deck: seventy-eight cards", "What is in the box, and how the parts are named.",
+`<p>A standard modern tarot deck has <b>78 cards</b> in two unequal groups.</p>
+<ul><li><b>The Major Arcana</b> ('greater secrets'), 22 cards, numbered 0 or I to XXI, each with a name: the Fool, the Magician, the High Priestess, the Empress, the Emperor, the Hierophant, the Lovers, the Chariot, Strength, the Hermit, the Wheel of Fortune, Justice, the Hanged Man, Death, Temperance, the Devil, the Tower, the Star, the Moon, the Sun, Judgement, the World. Readers treat these as the large, impersonal or fateful themes.</li>
+<li><b>The Minor Arcana</b> ('lesser secrets'), 56 cards in four <b>suits</b>: Wands, Cups, Swords and Pentacles (also called Coins or Disks). Each suit runs Ace through Ten, then four <b>court cards</b>: Page, Knight, Queen and King. Readers treat these as the texture of ordinary life.</li></ul>
+<p>The words <i>arcana</i>, 'secrets', and the whole division into Major and Minor are <b>nineteenth-century occult usage</b>, not fifteenth-century Italian. The cards themselves began as a game: the majors were the <i>trionfi</i>, trumps that beat the other suits. Nothing in the original deck called them secrets.</p>
+<p>So the structure you are learning is real and useful, and it is also historical: it took the shape it has between about 1781 and 1910.</p>`,
+"'Major and Minor Arcana' is nineteenth-century language for a fifteenth-century card game's trumps and suits.",
+[["How many cards are in the Minor Arcana?", ["22", "56", "40", "78"], 1, "Four suits of fourteen."],
+ ["What were the Major Arcana originally called?", ["Arcana", "Trionfi: trumps in a card game", "Keys", "Atus"], 1, "The occult names came later."],
+ ["How many court cards per suit in a standard tarot deck?", ["Three", "Four: Page, Knight, Queen, King", "Two", "Five"], 1, "The Knight is the extra one, next to a playing-card deck."]],
+{ fig: { k: "flow", items: ["78 cards", "22 Major Arcana (trumps)", "56 Minor Arcana", "4 suits × Ace–Ten", "4 courts per suit"], c: "The structure of a modern deck." } });
+
+U("tarot", "The Rider–Waite–Smith system, and what it is not", "The deck most modern readers learn from, and the century that made it.",
+`<p>Almost every modern tarot book, course and app is built on one deck: the one published by <b>William Rider & Son</b> in 1909, designed by <b>Arthur Edward Waite</b> and drawn by <b>Pamela Colman Smith</b>, both members of the Hermetic Order of the Golden Dawn. It is usually called the <b>Rider–Waite–Smith</b> deck, or RWS.</p>
+<p>Its decisive innovation was the <b>illustrated minors</b>. Before it, the pip cards of most tarot decks showed only arrangements of the suit symbol (eight cups, five swords), as an ordinary playing-card deck still does. Smith drew a scene on every one of the fifty-six. That is why a modern reader can look at the Five of Cups and see a cloaked figure grieving over three spilt cups while two stand behind him: the picture carries the meaning, and the deck can be read without memorizing tables.</p>
+<p><b>What the RWS is</b>: a modern occult tarot, built on Golden Dawn correspondences (each trump assigned a Hebrew letter, a path on the Kabbalistic Tree of Life, and a planet or sign; each minor card assigned a planet in a decan of a sign), expressing Waite's own Christian-Hermetic reading, with Smith's imagery drawing on Golden Dawn teaching, theatre and her own invention.</p>
+<p><b>What the RWS is not</b>: ancient, Egyptian, or what a fifteenth-century tarot card meant. Waite himself changed the traditional order, swapping Strength and Justice to fit the astrological scheme. When a modern book tells you 'the Tower means sudden upheaval', it is reporting a tradition roughly a hundred and fifty years old, not an immemorial one.</p>
+<p>That is not an objection. It is a living system with its own coherence, and this level teaches it as such.</p>`,
+"Smith's illustrated pip cards are the reason modern tarot can be read from the picture rather than memorized from a table.",
+[["What was the Rider–Waite–Smith deck's decisive innovation?", ["Gold edges", "A scene illustrated on every minor card, not just the pips", "Hebrew letters", "A 78th card"], 1, "Pamela Colman Smith drew all 56."],
+ ["Which two trumps did Waite swap?", ["The Fool and the Magician", "Strength and Justice", "The Sun and the Moon", "Death and the Devil"], 1, "To fit the astrological attributions."],
+ ["The RWS system is best described as…", ["Ancient Egyptian", "A modern occult tarot of about 1909, built on Golden Dawn correspondences", "A fifteenth-century Italian game", "A Jewish Kabbalistic text"], 1, "Coherent, and modern."]],
+{ fig: { k: "timeline", ev: [["1781", "An Egyptian origin claimed"], ["1856", "Lévi: trumps and letters"], ["1888", "Golden Dawn builds it out"], ["1909", "Rider–Waite–Smith"]], c: "The modern tarot was assembled in about 130 years." } });
+
+U("tarot", "The Major Arcana in modern reading", "Twenty-two cards, and the shapes readers find in them.",
+`<p>Modern readers approach the trumps in a few standard ways, which can be combined:</p>
+<ul><li><b>The Fool's Journey</b>: the trumps read in order as one story, the Fool (0) passing through every figure to the World (XXI). Useful and well loved; it is a twentieth-century device, not a medieval one.</li>
+<li><b>Three groups of seven</b> after the Fool: I–VII the powers of the person in the world (Magician to Chariot); VIII–XIV the turning inward and the trials (Strength to Temperance); XV–XXI the great forces and the light (Devil to World).</li>
+<li><b>Card by card</b>, as a figure with a core idea: the Magician as focused will and skill; the High Priestess as hidden knowledge and the unspoken; the Hierophant as tradition and teaching; the Wheel as change of fortune; the Hanged Man as suspension and reversal of view; Death as ending and transformation (not literal death, in every modern school); the Tower as sudden collapse of a false structure; the Star as hope after it; the Moon as uncertainty, dream and deception; Judgement as awakening and summons.</li></ul>
+<p>In a reading, a trump is usually taken as weightier than a minor: a matter larger than the querent's own choices. Where several trumps appear together, readers take the whole matter to be of that order.</p>
+<p>Keep in mind throughout: these meanings belong to the modern occult layer. Later in this course you will see which of them come from Waite, which from Lévi, which from the Golden Dawn, and which from the fifteenth-century images themselves.</p>`,
+"The 'Fool's Journey' is a twentieth-century way of reading the trumps in order, not the order's original meaning.",
+[["What is the Fool's Journey?", ["A medieval allegory", "A modern reading of the trumps in order as one story", "A spread", "A Golden Dawn ritual"], 1, "Twentieth-century."],
+ ["How do modern readers usually treat Death?", ["As literal death", "As ending and transformation", "As illness", "As a reversal of the previous card"], 1, "Standard across modern schools."],
+ ["What does a trump usually signify in a spread?", ["A minor detail", "A matter larger than the querent's own choices", "A person", "A date"], 1, "Weightier than a minor."]],
+{ fig: { k: "triad", items: ["I–VII: powers in the world", "VIII–XIV: inward turn and trial", "XV–XXI: great forces and light"], center: "0 the Fool", c: "One common grouping of the trumps." } });
+
+U("tarot", "The minors: suits, elements and numbers", "Fifty-six cards of ordinary life, read from two axes.",
+`<p>A minor card is read as a <b>suit</b> crossed with a <b>number</b>.</p>
+<p><b>The four suits</b>, with the elemental attributions standard in modern (Golden Dawn-derived) practice:</p>
+<ul><li><b>Wands</b> · Fire · will, drive, enterprise, creative energy, conflict of purpose</li>
+<li><b>Cups</b> · Water · feeling, relationship, imagination, the inner life</li>
+<li><b>Swords</b> · Air · mind, speech, conflict, judgment, difficulty</li>
+<li><b>Pentacles</b> · Earth · body, work, money, craft, what is slowly built</li></ul>
+<p><b>The numbers</b>, read roughly the same way in each suit:</p>
+<ul><li><b>Ace</b>: the pure root of the element, a beginning or gift. <b>Two</b>: duality, balance, choice. <b>Three</b>: first growth or result. <b>Four</b>: stability, and sometimes stagnation. <b>Five</b>: loss, conflict, the break in the pattern. <b>Six</b>: recovery, harmony, giving. <b>Seven</b>: testing, assessment, holding on alone. <b>Eight</b>: movement, work, change of position. <b>Nine</b>: the suit near its limit, for good or ill. <b>Ten</b>: completion, and the weight of it.</li></ul>
+<p>So the Five of Cups is loss in the realm of feeling, the Five of Pentacles loss in the realm of the material. The two axes do most of the work, and the picture on an RWS card tells you which shade of the meaning Smith chose.</p>
+<p>Two cautions. The <b>element–suit assignment is a convention</b>: most modern decks give Wands to Fire and Swords to Air, but some traditions reverse those two, and the fifteenth-century deck had no elemental attributions at all. And the numbers are a pattern to think with, not a rule.</p>`,
+"Suit plus number gets you most of the way: the Five of Cups is loss in feeling, the Five of Pentacles loss in the world.",
+[["Which element is standardly given to Swords in modern practice?", ["Fire", "Air", "Water", "Earth"], 1, "Though some traditions swap Swords and Wands."],
+ ["What do the Fives generally bring in each suit?", ["Completion", "Loss, conflict or a break in the pattern", "Stability", "A beginning"], 1, "The break."],
+ ["Did fifteenth-century tarot assign elements to the suits?", ["Yes, always", "No: the attributions are a later occult convention", "Only to Cups", "Only in France"], 1, "A modern layer."]],
+{ fig: { k: "rows", rows: [["Wands · Fire", "will, drive, enterprise"], ["Cups · Water", "feeling, relationship"], ["Swords · Air", "mind, conflict, judgment"], ["Pentacles · Earth", "body, work, what is built"]], c: "The four suits in modern practice." } });
+
+U("tarot", "The courts as people and modes", "The hardest cards for beginners, and the three ways readers handle them.",
+`<p>Each suit has four court cards: <b>Page</b>, <b>Knight</b>, <b>Queen</b> and <b>King</b> (Crowley's Thoth deck renames them Princess, Prince, Queen and Knight, and reorders them). Modern readers use them in three ways, often switching mid-reading:</p>
+<ol><li><b>As people</b> in the querent's life, characterized by the suit's element and the rank's bearing: the Queen of Cups as someone of deep feeling and care, the King of Swords as someone who rules by judgment and speech.</li>
+<li><b>As modes</b> of the querent's own behaviour: the Knight of Wands as the way you rush at something, the Page of Pentacles as the way you begin learning a craft.</li>
+<li><b>As stages</b> of engagement with the suit's element: the Page receives and studies it, the Knight pursues it singly and in excess, the Queen holds and nourishes it inwardly, the King directs it outward.</li></ol>
+<p>The Golden Dawn added a fourth layer, widely used in modern books: each court card is an <b>element within an element</b> (the Knight of Cups as the fiery part of Water, and so on), which gives sixteen temperaments.</p>
+<p>Older practice read the courts largely as <b>people</b>, often by physical description and social rank. The psychological reading of them as parts of oneself is a twentieth-century development.</p>`,
+"When a court card appears, ask first: is this a person, a way I am behaving, or a stage of the matter?",
+[["Which three uses do modern readers make of the courts?", ["Past, present, future", "People, modes of behaviour, stages of engagement", "Elements only", "Dates, places, names"], 1, "Often switching between them."],
+ ["What does the Golden Dawn's 'element within an element' give?", ["Four temperaments", "Sixteen temperaments", "Seventy-eight", "Twenty-two"], 1, "Four ranks × four suits."],
+ ["How did older practice mainly read the courts?", ["As parts of the psyche", "As people, often by description and rank", "As planets", "As months"], 1, "The psychological reading is modern."]],
+{ fig: { k: "ladder", items: ["Page: receives and studies", "Knight: pursues, in excess", "Queen: holds and nourishes", "King: directs outward"], c: "The courts as stages of one element." } });
+
+U("tarot", "From image to meaning: how a reading works", "What a reader actually does between turning a card and saying something.",
+`<p>Books give meanings; readers read. The difference is that a reader works from four things at once:</p>
+<ol><li><b>The received meaning</b>: what the tradition says the card carries. Worth knowing, and not the whole of it.</li>
+<li><b>The image</b>: what is actually drawn. Who is looking where? What is behind them? Is the sky clear? In the RWS the pictures are deliberately full of such detail, and a reader is expected to use it.</li>
+<li><b>The position</b>: what the place in the spread asked. The same card answering 'what is helping me?' and 'what is in my way?' says two different things.</li>
+<li><b>The neighbours</b>: what the surrounding cards do to it. Three Swords around a Cup card change its sense; a trump beside a minor raises its weight. Readers call this <b>combination</b> or dignity.</li></ol>
+<p>The common beginner's error is to treat a card as a dictionary entry and read the spread as a list of definitions. The common instruction in modern teaching is the opposite: <b>read the cards as a sentence</b>, letting the positions supply the grammar and the neighbours the modifiers, and saying aloud what the whole picture seems to be about before refining it.</p>
+<p>What a reading is taken to <i>be</i> differs by reader: a message from without, a mirror of the unconscious, a structured way of attending to one's own situation, or a divinatory act in the old sense. Modern tarot holds all four views, and they change what a reader will claim for an answer.</p>`,
+"Read the spread as a sentence, not a list of definitions: the positions are the grammar and the neighbouring cards the modifiers.",
+[["What do readers call the effect of surrounding cards on a card's sense?", ["Reversal", "Combination, or dignity", "Significator", "Shuffle"], 1, "Neighbours modify meaning."],
+ ["What is the common beginner's error?", ["Using too many cards", "Treating each card as a fixed dictionary entry", "Shuffling wrongly", "Asking too few questions"], 1, "Read it as a sentence instead."],
+ ["Do modern readers agree about what a reading is?", ["Yes, all treat it as divination", "No: a message, a mirror of the unconscious, a way of attending, or divination", "Yes, all treat it as psychology", "They never discuss it"], 1, "The view changes what is claimed."]],
+{ fig: { k: "flow", items: ["Received meaning", "+ the image itself", "+ the position's question", "+ the neighbouring cards", "= what this card says here"], c: "The four inputs of a modern reading." } });
+
+U("tarot", "A three-card spread, and reversals", "The smallest useful reading, and an optional convention.",
+`<p>A <b>spread</b> is a layout in which each position asks a defined question. The smallest widely used one is the <b>three-card spread</b>, and its strength is that the three positions can be defined to fit the question:</p>
+<ul><li>Past · Present · Future</li>
+<li>Situation · Action · Outcome</li>
+<li>What helps · What hinders · What to do</li>
+<li>Mind · Body · Spirit</li></ul>
+<p>The method: frame one clear question; decide and <b>say</b> what each position means before drawing; shuffle and draw three; read each card in its position; then read the three together as one statement, which usually says more than the parts.</p>
+<p><b>Reversals.</b> Some readers turn reversed cards ('a card drawn upside down') into a distinct meaning: the card blocked, delayed, internalized, weakened, or its opposite. Others do not use reversals at all and read every card upright, finding the range of meaning within the card itself and letting the neighbours supply the shading.</p>
+<p>Neither is more authentic. Reversals appear in cartomantic practice from Etteilla onward in the eighteenth century, so they are old within the divinatory tradition and absent from the card game. The usual advice is to choose one approach and keep to it, because a deck read sometimes with and sometimes without reversals becomes incoherent.</p>`,
+"Define what each position asks before you draw: an undefined position makes any card fit, which is how readings become meaningless.",
+[["What makes a spread position useful?", ["Its place on the table", "That it asks a defined question, settled before the draw", "The card's colour", "The number of cards"], 1, "Otherwise anything fits."],
+ ["Are reversals required in tarot?", ["Yes, always", "No: many readers use none, and both approaches are established", "Only with the RWS deck", "Only for the majors"], 1, "Choose one and keep to it."],
+ ["Where do reversals come from?", ["Fifteenth-century Italy", "Cartomantic practice from Etteilla onward in the 18th century", "The Golden Dawn", "Crowley"], 1, "Old within divination, absent from the game."]],
+{ fig: { k: "flow", items: ["Frame the question", "Define each position", "Draw", "Read each in place", "Read the three as one"], c: "The three-card method." } });
+
+/* ---- Plato ---- */
+U("anc", "Phaedrus: the charioteer and the wings of the soul", "Plato's great myth of the soul's fall, its memory of the forms, and the madness that restores it.",
+`<p>In the <i>Phaedrus</i> (246a–257b) Socrates gives the image that later Platonists, Christians and esotericists all reworked. The soul is a <b>charioteer</b> driving two winged horses, one noble and one unruly. The gods' chariots rise easily; human souls struggle.</p>
+<p><b>The procession and the fall.</b> Following the gods, souls climb to the rim of heaven and look out upon the <b>plain of truth</b>, where the realities are: justice itself, temperance itself, knowledge itself, 'colourless, formless and intangible', fed on by true knowledge. The unruly horse drags the human charioteer down; souls catch only glimpses, jostle, lose their wings and fall into bodies. How much each saw determines the kind of life it enters.</p>
+<p><b>Recollection and the wings.</b> Embodied, the soul has forgotten. But beauty alone among the realities has a visible image here, so the sight of a beautiful body or person strikes the soul with a shock of <b>recollection</b> (<i>anamnēsis</i>), and the stumps of its wings begin to swell and grow. The pain and disturbance of love is the pain of feathers breaking out.</p>
+<p><b>Divine madness.</b> Socrates ranks four kinds of god-given madness above human sobriety: prophetic, telestic (the madness of initiation and purification rites), poetic, and erotic. This is the passage that later gave theurgists their justification for ritual madness, and Ficino his doctrine of the four <i>furores</i>.</p>
+<p>Note what the myth supplies to everything downstream: a soul of divine origin, a fall into body, forgetting, a world of true realities above, and a path of return opened by love, beauty and rite.</p>`,
+"Ficino's four divine frenzies, and the theurgists' defence of ritual, both rest on one passage of the Phaedrus: the four madnesses that are better than sobriety.",
+[["What drags the human charioteer down?", ["The noble horse", "The unruly horse", "The gods", "The chariot itself"], 1, "The soul loses its wings."],
+ ["Why does beauty in particular awaken recollection?", ["It is the greatest reality", "Alone among the realities it has a clear visible image here", "It is the easiest to define", "It is a god"], 1, "Phaedrus 250d."],
+ ["Which four madnesses does Socrates call god-given?", ["Anger, fear, grief, joy", "Prophetic, telestic, poetic and erotic", "Drunkenness, love, war and art", "Dream, trance, vision and ecstasy"], 1, "Ficino's four furores."]],
+{ fig: { k: "ladder", items: ["The plain of truth", "The rim of heaven", "The procession of souls", "The unruly horse pulls down", "Wings lost, soul embodied", "Beauty → recollection → wings grow"], c: "The myth of the Phaedrus." } });
+
+/* ---- The Jewish bridge ---- */
+U("jew", "From the chariot to the sefirot", "What the early Kabbalists inherited, and what they did that was new.",
+`<p>The Kabbalah that appears in Provence around 1150–1200 did not come from nowhere, and it is not simply the continuation of what came before. Set the inheritance beside the innovation.</p>
+<p><b>What the Kabbalists inherited:</b></p>
+<ul><li>From <b>Ezekiel and the Merkavah tradition</b>: the conviction that the divine has a describable structure, approached only by the worthy and under restriction, and a vocabulary of thrones, chariots, hosts and glory.</li>
+<li>From the <b>Hekhalot</b> texts: an ascent through palaces guarded by angels, won by purity, fasting and the use of names, and the idea that divine <b>names</b> are instruments.</li>
+<li>From <b>Sefer Yetzirah</b>: the ten <i>sefirot belimah</i> and the twenty-two letters as the elements from which the world is made; the notion that creation is linguistic.</li>
+<li>From <b>rabbinic Judaism</b>: the restriction of Hagigah 2:1, the warning tale of the four who entered the orchard, and above all the conviction that what a Jew does with Torah and the commandments <i>matters</i> beyond himself.</li>
+<li>From the <b>Hasidei Ashkenaz</b> and the Geonic traditions: techniques of letter mysticism and speculation on the divine glory.</li></ul>
+<p><b>What was new in Kabbalah:</b> the ten sefirot become not instruments of creation but <b>God's own inner life</b>, a structure of divine powers in dynamic relation, with a feminine last sefirah, the <b>Shekhinah</b>, who can be in exile or in union with the masculine powers above her. And human action becomes <b>theurgic</b>: performing a commandment, or praying with the right intention, acts upon that divine structure.</p>
+<p>That is the step. Merkavah mysticism ascends to see God; Kabbalah describes God's inner life and claims that human beings affect it.</p>`,
+"The decisive step is not the ascent but the claim: the sefirot are God's own life, and what a person does reaches into it.",
+[["In Sefer Yetzirah, what are the sefirot?", ["God's inner life", "Elements, with the letters, from which the world is made", "Angels", "Palaces"], 1, "The later meaning is Kabbalah's innovation."],
+ ["What is theurgic about Kabbalah, as distinct from Merkavah mysticism?", ["It ascends through palaces", "Human action is held to act upon the divine structure itself", "It uses divine names", "It restricts study"], 1, "Not only seeing, but affecting."],
+ ["Who is the Shekhinah in early Kabbalah?", ["An angel of the chariot", "The feminine last sefirah, who may be in exile or in union", "A Hekhalot palace", "A name of God in Sefer Yetzirah"], 1, "A genuine innovation."]],
+{ fig: { k: "compare", a: "Merkavah and Hekhalot", ai: ["ascent through palaces", "seeing the glory", "names as instruments"], b: "Kabbalah", bi: ["sefirot as God's inner life", "the Shekhinah in exile", "human acts reach the divine"], c: "What changed around 1200." } });
+
 /* =================== LEARN v3: language drills, generated from paradigms =================== */
 const DRILL = (() => {
   const rnd = n => Math.floor(Math.random() * n), pick = a => a[rnd(a.length)];
@@ -15869,7 +16141,7 @@ start();
 
 <script>
 (function(){
-  var BUILD="20261029140134";
+  var BUILD="20261029152233";
   if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js").catch(function(){}); }
   function check(){ fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.json();}).then(function(v){ if(v && v.build && v.build!==BUILD) location.reload(); }).catch(function(){}); }
   setInterval(check, 20*60*1000);
