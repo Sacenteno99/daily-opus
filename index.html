@@ -423,6 +423,17 @@ ul.reqs .linkish { text-align: left; }
 .librow.read{opacity:.7}
 .librow .bd{font-size:.72rem}
 .lrefl textarea{min-height:64px}
+/* v4: minimum vs full reading */
+.book{display:block;cursor:default}
+.bmain{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:start;cursor:pointer}
+.bfull{display:flex;gap:10px;align-items:flex-start;margin-top:10px;padding-top:9px;border-top:1px dashed var(--rule);cursor:pointer;font-size:.88rem;color:var(--muted);line-height:1.45}
+.bfull input{width:16px;height:16px;accent-color:#cba44b;margin-top:2px;flex:none}
+.bfull.on{color:var(--parchment)}
+.bd.full{border-color:rgba(143,195,157,.6);color:#8fc39d}
+.librow{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap}
+.librm{display:flex;gap:10px;align-items:flex-start;flex:1 1 320px;cursor:pointer;min-width:0}
+.librf{display:flex;gap:6px;align-items:center;font-size:.78rem;color:var(--muted);cursor:pointer;white-space:nowrap}
+.librf input{width:15px;height:15px;accent-color:#cba44b}
 </style>
 
 <div class="app">
@@ -7189,8 +7200,10 @@ const RUBRIC = {
 };
 let lexRes = null, lsec = store.get("opus.lsec") || "src", lpos = store.get("opus.lpos2") || {}, lview = store.get("opus.lview2") || "path", ltocOpen = false, lopen = null, lcur = store.get("opus.lcur") || null;
 const lread = new Set(store.get("opus.lread") || []), lread2 = new Set(store.get("opus.lread2") || []), ldone = new Set(store.get("opus.ldone") || []), lchk = new Set(store.get("opus.lchk") || []), lpeek = new Set(store.get("opus.lpeek") || []);
+const lfull = new Set(store.get("opus.lfull") || []);
+const MINRULE = "The reading named for each work is the <b>minimum</b> for this level, never a limit. You are always free, and warmly encouraged, to read on through the whole work when it interests you: finishing the whole work also satisfies the assigned part, and nothing in the school ever waits on reading beyond the minimum.";
 const lexam = store.get("opus.lexam") || {}, lxs = store.get("opus.lxs") || {}, ltask = store.get("opus.ltask") || {}, lrefl = store.get("opus.lrefl") || {};
-let libRole = "all", libQ = "", libUnread = false;
+let libRole = "all", libQ = "", libUnread = false, libFull = false;
 let lexCur = store.get("opus.lexcur2") || null, lexMsg = "", SAMPLE, lgrading = null, lmsg = {};
 const chByTitle = t => CH.find(c => c.t === t);
 const DAY = 864e5, ldayKey = t => { const d = new Date(t); return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(); };
@@ -7377,15 +7390,27 @@ ${text.slice(0, 24000)}
 }
 
 /* ---- source records ---- */
+// What reading a work entire means, when its assignment here is only a part of it.
+function fullOf(r) {
+  const [id, des, scope] = r, b = BIB[id];
+  if (!b || !scope || des === "REFERENCE" || b.st === "REFERENCE") return null;
+  if (typeof NOFULL !== "undefined" && NOFULL[id]) return null;
+  if (/^(the whole|all |both books entire)/i.test(scope)) return null;
+  const F = typeof FULLREAD !== "undefined" ? FULLREAD[id] : null;
+  return { t: F ? F[0] : "the whole work", enc: !!(F && F[1]) };
+}
 function bibHTML(r) {
   const [id, des, scope] = r, b = BIB[id]; if (!b) return "";
-  const on = lread2.has(id), must = MUSTREAD[des];
+  const on = lread2.has(id), fu = lfull.has(id), must = MUSTREAD[des], F = fullOf(r);
   const meta = [b.e, b.y && "published " + b.y, b.od && "original " + b.od, b.lg && "original language: " + b.lg].filter(Boolean).join(" · ");
-  return `<label class="book${on ? " read" : ""}${must ? "" : " opt"}"><input type="checkbox" data-bib="${id}"${on ? " checked" : ""}><span class="stack-s" style="gap:3px">
-    <span class="bdg"><span class="bd des-${des}">${DES[des]}</span><span class="bd">${STN[b.st] || b.st}</span>${b.ss && b.ss !== "CURRENT" && b.ss !== "PRIMARY_SOURCE" ? `<span class="bd${WARN[b.ss] ? " warn" : ""}">${SSN[b.ss]}</span>` : ""}${b.v === "N" ? `<span class="bd warn">Needs verification</span>` : ""}</span>
+  return `<div class="book${on ? " read" : ""}${must ? "" : " opt"}">
+    <label class="bmain"><input type="checkbox" data-bib="${id}"${on ? " checked" : ""}><span class="stack-s" style="gap:3px">
+    <span class="bdg"><span class="bd des-${des}">${DES[des]}</span><span class="bd">${STN[b.st] || b.st}</span>${b.ss && b.ss !== "CURRENT" && b.ss !== "PRIMARY_SOURCE" ? `<span class="bd${WARN[b.ss] ? " warn" : ""}">${SSN[b.ss]}</span>` : ""}${b.v === "N" ? `<span class="bd warn">Needs verification</span>` : ""}${fu ? `<span class="bd full">✓ read in full</span>` : ""}</span>
     <b style="color:var(--parchment)">${esc(b.t)}</b><span class="muted" style="font-size:.9rem">${esc(b.a)}${b.tr ? " · trans. " + esc(b.tr) : ""}${b.ed && b.ed !== b.a ? " · ed. " + esc(b.ed) : ""}</span>
-    ${scope ? `<span style="font-size:.95rem"><b>Read:</b> ${esc(scope)}</span>` : ""}
-    <details class="bmore"><summary>Why, and which edition</summary><span class="stack-s" style="gap:3px;font-size:.92rem">${b.w ? `<span>${esc(b.w)}</span>` : ""}<span class="muted">${esc(meta)}</span>${b.trad ? `<span class="muted">Tradition: ${esc(b.trad)} · difficulty ${"●".repeat(b.d || 1)}${"○".repeat(5 - (b.d || 1))}</span>` : ""}${b.n ? `<span class="muted">${esc(b.n)}</span>` : ""}<span class="muted">${VN[b.v]}</span></span></details></span></label>`;
+    ${scope ? `<span style="font-size:.95rem"><b>${F ? "Minimum" : "Read"}:</b> ${esc(scope)}</span>` : ""}
+    <details class="bmore"><summary>Why, and which edition</summary><span class="stack-s" style="gap:3px;font-size:.92rem">${b.w ? `<span>${esc(b.w)}</span>` : ""}<span class="muted">${esc(meta)}</span>${b.trad ? `<span class="muted">Tradition: ${esc(b.trad)} · difficulty ${"●".repeat(b.d || 1)}${"○".repeat(5 - (b.d || 1))}</span>` : ""}${b.n ? `<span class="muted">${esc(b.n)}</span>` : ""}<span class="muted">${VN[b.v]}</span></span></details></span></label>
+    ${F ? `<label class="bfull${fu ? " on" : ""}"><input type="checkbox" data-bibfull="${id}"${fu ? " checked" : ""}><span><b>Full reading${F.enc ? ", encouraged" : ""}:</b> ${esc(F.t)}${fu ? " <b>· read ✓</b>" : ""}</span></label>` : ""}
+  </div>`;
 }
 
 /* ---- views ---- */
@@ -7428,11 +7453,11 @@ const eraName = e => (ERAS.find(x => x[0] === e) || [e, e])[1];
 function viewLevel(g) {
   const L = LVL(g); if (!L) return viewPath();
   if (L.isP) return viewPractice(g);
-  const P = PLAN[L.c], open = lopenG(g), mr = mustRead(g), nb = mr.filter(r => lread2.has(r[0])).length;
+  const P = PLAN[L.c], open = lopenG(g), mr = mustRead(g), nb = mr.filter(r => lread2.has(r[0])).length, nf = (L.r || []).filter(r => lfull.has(r[0])).length;
   return `<span class="label">${L.isQE ? "Synthesis checkpoint" : `${esc(P.name)} · Level ${ROMAN(L.i)}`} · ${TIERS[L.tier].n} · ${optLabel(L)}${(L.era || []).length ? " · " + L.era.map(eraName).join(", ") : ""}${L.hrs ? ` · about ${L.hrs} hours` : ""}</span><h2>${esc(L.t)}</h2><p class="lead">${L.desc}</p>
     ${lcomplete(g) ? `<div class="box nugget"><h4>✓ Complete</h4></div>` : lreqs(g).length ? `<details class="box stack-s"${lready(g) ? "" : " open"}><summary class="label" style="cursor:pointer">${lready(g) ? "✓ What helps to have done first" : "Helpful to have done first (you can begin anyway)"}</summary>${reqHTML(g)}</details>` : ""}
     ${L.isQE ? `<div class="stack-s"><h3>What this checkpoint covers</h3><div class="plist">${L.from.map(a => tileHTML(a)).join("")}</div></div>` : `
-    <div class="stack-s"><h3>Readings${mr.length ? ` · ${nb} of ${mr.length} core and required read` : ""}</h3><p class="muted">Primary sources lead; commentary explains them. Tick a reading when you've read the part named: the quiz opens when every core and required reading is ticked. Recommended, specialist and optional readings are for going further.</p><div class="books">${L.r.map(bibHTML).join("")}</div>
+    <div class="stack-s"><h3>Readings${mr.length ? ` · ${nb} of ${mr.length} core and required read` : ""}${nf ? ` · ${nf} read in full` : ""}</h3><p class="muted">Primary sources lead; commentary explains them. Tick a reading when you've read at least the part named: the quiz opens when every core and required reading is ticked. Recommended, specialist and optional readings are for going further.</p><div class="why"><span class="label">Assigned reading is a floor, not a ceiling</span><p>${MINRULE}</p></div><div class="books">${L.r.map(bibHTML).join("")}</div>
     ${L.pv && L.pv.length ? `<div class="why"><span class="label">Still to be verified</span><ul>${L.pv.map(p => `<li class="muted">${esc(p)}</li>`).join("")}</ul></div>` : ""}</div>
     <div class="stack-s"><h3>Units</h3><ol class="unit-list" start="${unitNumIn(L.c, L.u[0])}">${L.u.map(k => `<li>${open ? `<button type="button" class="linkish" data-u="${esc(k)}">${esc(uo(k).t)}</button>` : `<span class="muted">${esc(uo(k).t)}</span>`}${udone(k) ? ' <span style="color:#8fc39d">✓</span>' : ""}</li>`).join("")}</ol></div>`}
     ${quizBoxHTML(g)}${taskBoxHTML(g)}
@@ -7491,7 +7516,7 @@ function viewPath() {
   return `<span class="label">${COURSE_ORDER.length} courses · ${all.length} levels and checkpoints · ${done.length} complete</span><h2>Your path</h2>
     <p class="lead">A school of the traditions, each taught on its own terms: its texts, teachings, practices and inner logic. Follow the route below in order, or open any course and begin anywhere: nothing is locked.</p>
     ${card}
-    <div class="why"><span class="label">How it works</span><p>Each level has units (with short checks), a few readings, a quiz and one piece of written work: explaining a teaching, interpreting a passage, reconstructing a practice, or telling two things apart. The route puts the levels in a sensible order across courses; a level's page also says what helps to have done first. Languages, context courses and specialist levels sit beside the route. At the end of each course there is a private reflection space, kept apart from the teaching.</p></div>
+    <div class="why"><span class="label">How it works</span><p>Each level has units (with short checks), a few readings, a quiz and one piece of written work: explaining a teaching, interpreting a passage, reconstructing a practice, or telling two things apart. The route puts the levels in a sensible order across courses; a level's page also says what helps to have done first. Languages, context courses and specialist levels sit beside the route. At the end of each course there is a private reflection space, kept apart from the teaching.</p><p>${MINRULE}</p></div>
     <div class="stack-s"><h3>The route</h3>${stages}</div>
     ${rec.length ? `<div class="stack-s"><h3>Beside the route: recommended</h3><p class="muted">Languages and context that make the route richer. Take them when they help.</p><div class="plist">${rec.map(L => tileHTML(L.gid)).join("")}</div></div>` : ""}
     ${other.length ? `<div class="stack-s"><h3>Electives</h3><div class="plist">${other.map(L => tileHTML(L.gid)).join("")}</div></div>` : ""}
@@ -7501,21 +7526,22 @@ function viewPath() {
 }
 function viewLib() {
   const q = libQ.trim().toLowerCase(), roleOk = d => libRole === "all" ? true : libRole === "must" ? !!MUSTREAD[d] : d === libRole;
-  let total = 0, shown = 0, read = 0; const seen = new Set();
+  let total = 0, shown = 0, read = 0, full = 0; const seen = new Set();
   const body = COURSE_ORDER.map(c => { const P = PLAN[c];
-    const lv = P.levels.map(L => { const rows = (L.r || []).filter(([id, d, sc]) => { const b = BIB[id]; if (!b) return false; total++; if (!seen.has(id)) { seen.add(id); if (lread2.has(id)) read++; }
-      if (!roleOk(d)) return false; if (libUnread && lread2.has(id)) return false; if (q && !(b.t + " " + b.a + " " + (sc || "") + " " + (b.trad || "")).toLowerCase().includes(q)) return false; return true; });
+    const lv = P.levels.map(L => { const rows = (L.r || []).filter(([id, d, sc]) => { const b = BIB[id]; if (!b) return false; total++; if (!seen.has(id)) { seen.add(id); if (lread2.has(id)) read++; if (lfull.has(id)) full++; }
+      if (!roleOk(d)) return false; if (libUnread && lread2.has(id)) return false; if (libFull && !lfull.has(id)) return false; if (q && !(b.t + " " + b.a + " " + (sc || "") + " " + (b.trad || "")).toLowerCase().includes(q)) return false; return true; });
       if (!rows.length) return ""; shown += rows.length;
-      return `<div class="libl"><button type="button" class="linkish label" data-lgo="${L.gid}">${esc(L.name)} · ${esc(L.t)}</button>${rows.map(([id, d, sc]) => { const b = BIB[id], on = lread2.has(id);
-        return `<label class="librow${on ? " read" : ""}"><input type="checkbox" data-bib="${id}"${on ? " checked" : ""}><span><span class="bd des-${d}">${DES[d]}</span> <b>${esc(b.t)}</b> <span class="muted">· ${esc(b.a)}${b.y ? ", " + esc(b.y) : ""} · ${esc(STN[b.st] || "")}</span>${sc ? `<br><span style="font-size:.9rem">Read: ${esc(sc)}</span>` : ""}</span></label>`; }).join("")}</div>`; }).join("");
+      return `<div class="libl"><button type="button" class="linkish label" data-lgo="${L.gid}">${esc(L.name)} · ${esc(L.t)}</button>${rows.map(r => { const [id, d, sc] = r, b = BIB[id], on = lread2.has(id), fu = lfull.has(id), F = fullOf(r);
+        return `<div class="librow${on ? " read" : ""}"><label class="librm"><input type="checkbox" data-bib="${id}"${on ? " checked" : ""}><span><span class="bd des-${d}">${DES[d]}</span>${fu ? ` <span class="bd full">✓ in full</span>` : ""} <b>${esc(b.t)}</b> <span class="muted">· ${esc(b.a)}${b.y ? ", " + esc(b.y) : ""} · ${esc(STN[b.st] || "")}</span>${sc ? `<br><span style="font-size:.9rem">${F ? "Minimum" : "Read"}: ${esc(sc)}</span>` : ""}</span></label>${F ? `<label class="librf" title="${esc(F.t)}"><input type="checkbox" data-bibfull="${id}"${fu ? " checked" : ""}><span>in full</span></label>` : ""}</div>`; }).join("")}</div>`; }).join("");
     return lv ? `<details class="lphase" open><summary><span class="g">${g(P.glyph)}</span> <b>${esc(P.name)}</b></summary>${lv}</details>` : ""; }).join("");
   const chip = (v, t) => `<button type="button" class="btn rip${libRole === v ? " primary" : ""}" data-librole="${v}">${t}</button>`;
   return `<span class="label">Every reading in the school, by course and level</span><h2>Library</h2>
-    <p class="lead">All the readings in one place. Ticking a book here ticks it everywhere.</p>
+    <p class="lead">Every reading in the school, in one place. Ticking a work here ticks it everywhere.</p>
+    <div class="why"><span class="label">Assigned reading is a floor, not a ceiling</span><p>${MINRULE}</p></div>
     <div class="lnav" style="flex-wrap:wrap">${chip("must", "Core and required")}${chip("all", "Everything")}${chip("RECOMMENDED", "Recommended")}${chip("SPECIALIST", "Specialist")}${chip("REFERENCE", "Reference")}${chip("OPTIONAL", "Optional")}</div>
     <p><input type="search" id="libq" data-libq="1" value="${esc(libQ)}" placeholder="Search title, author or tradition" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--rule);background:var(--panel-2);color:var(--parchment)"></p>
-    <p><label class="exo" style="display:inline-flex"><input type="checkbox" data-libunread="1"${libUnread ? " checked" : ""}><span>Only what I haven't read</span></label></p>
-    <p class="muted">${shown} entries shown · ${read} of ${seen.size} different works ticked as read. A work set in several levels appears once for each.</p>
+    <p><label class="exo" style="display:inline-flex"><input type="checkbox" data-libunread="1"${libUnread ? " checked" : ""}><span>Only what I haven't read</span></label> <label class="exo" style="display:inline-flex"><input type="checkbox" data-libfull="1"${libFull ? " checked" : ""}><span>Only what I've read in full</span></label></p>
+    <p class="muted">${shown} entries shown · ${read} of ${seen.size} different works read, ${full} of them in full. A work set in several levels appears once for each.</p>
     <div id="libbody">${body || `<p class="muted">Nothing matches.</p>`}</div>`;
 }
 function viewEra() {
@@ -7564,8 +7590,8 @@ function syncExport() {
 }
 function syncSummary(d) {
   const P = k => { try { return JSON.parse(d[k] || "null"); } catch (e) { return null; } };
-  const u = (P("opus.ldone") || []).length, b = Math.max((P("opus.lread2") || []).length, (P("opus.lread") || []).length), x = Object.values(P("opus.lxs") || {}).filter(r => r && r.passed).length || Object.values(P("opus.lexam") || {}).filter(r => r && r.passed).length;
-  return `${u} unit${u === 1 ? "" : "s"} finished, ${b} reading${b === 1 ? "" : "s"} ticked, ${x} quiz${x === 1 ? "" : "zes"} passed`;
+  const u = (P("opus.ldone") || []).length, b = Math.max((P("opus.lread2") || []).length, (P("opus.lread") || []).length), f = (P("opus.lfull") || []).length, x = Object.values(P("opus.lxs") || {}).filter(r => r && r.passed).length || Object.values(P("opus.lexam") || {}).filter(r => r && r.passed).length;
+  return `${u} unit${u === 1 ? "" : "s"} finished, ${b} reading${b === 1 ? "" : "s"} ticked${f ? ` (${f} in full)` : ""}, ${x} quiz${x === 1 ? "" : "zes"} passed`;
 }
 function mergeTries(A, B) { const seen = new Set(), tries = [...(A.tries || []), ...(B.tries || [])].filter(t => !seen.has(t.at) && seen.add(t.at)).sort((x, y) => x.at - y.at), ps = [A.passed, B.passed].filter(Boolean), o = { tries }; if (ps.length) o.passed = Math.min(...ps); if (A.credited || B.credited) o.credited = A.credited || B.credited; return o; }
 function syncImport(code) {
@@ -7578,7 +7604,7 @@ function syncImport(code) {
   Object.keys(data).forEach(k => {
     if (pre4 && ["opus.lxs", "opus.ltask", "opus.lexcur2", "opus.lexam"].includes(k)) return;
     const inc = parse(data[k]), cur = get(k); let val;
-    if (["opus.ldone", "opus.lread", "opus.lread2", "opus.lchk", "opus.lpeek"].includes(k)) val = [...new Set([...(cur || []), ...(inc || [])])];
+    if (["opus.ldone", "opus.lread", "opus.lread2", "opus.lfull", "opus.lchk", "opus.lpeek"].includes(k)) val = [...new Set([...(cur || []), ...(inc || [])])];
     else if (k === "opus.lopenAt") { val = Object.assign({}, inc || {}); Object.entries(cur || {}).forEach(([a, t]) => { val[a] = val[a] ? Math.min(val[a], t) : t; }); }
     else if (k === "opus.lexam" || k === "opus.lxs") { val = {}; new Set([...Object.keys(cur || {}), ...Object.keys(inc || {})]).forEach(a => { val[a] = mergeTries((cur || {})[a] || {}, (inc || {})[a] || {}); }); }
     else if (k === "opus.lrefl") { val = Object.assign({}, cur || {}); Object.entries(inc || {}).forEach(([c, R]) => { const o = val[c] || {}; if (!o.at || (R && R.at > o.at)) val[c] = R; }); }
@@ -7673,10 +7699,16 @@ $("p-learn").addEventListener("change", e => {
     if (ex.type === "radio") a = [k]; else a = ex.checked ? [...new Set(a.concat(k))] : a.filter(v => v !== k);
     lexCur.ans[n] = a; lexCur.warned = false; store.set("opus.lexcur2", lexCur); return; }
   const un = e.target.closest("[data-libunread]"); if (un) { libUnread = un.checked; renderChapter(false); return; }
+  const uf = e.target.closest("[data-libfull]"); if (uf) { libFull = uf.checked; renderChapter(false); return; }
+  const bf = e.target.closest("[data-bibfull]");
+  if (bf) { const id = bf.dataset.bibfull;
+    if (bf.checked) { lfull.add(id); lread2.add(id); } else lfull.delete(id);
+    store.set("opus.lfull", [...lfull]); store.set("opus.lread2", [...lread2]);
+    renderChapter(false); return; }
   const b = e.target.closest("[data-bib]"); if (!b) return;
-  const id = b.dataset.bib; if (b.checked) lread2.add(id); else lread2.delete(id);
-  store.set("opus.lread2", [...lread2]); document.querySelectorAll(`[data-bib="${id}"]`).forEach(x => { x.checked = b.checked; const bk = x.closest(".book, .librow"); if (bk) bk.classList.toggle("read", b.checked); });
-  renderToc(); const box = document.querySelector(".exam-box"); if (box && lcur && lview === "lvl") { const nb = quizBoxHTML(lcur), t = document.createElement("div"); t.innerHTML = nb; box.replaceWith(t.firstElementChild); }
+  const id = b.dataset.bib; if (b.checked) lread2.add(id); else { lread2.delete(id); lfull.delete(id); }
+  store.set("opus.lread2", [...lread2]); store.set("opus.lfull", [...lfull]);
+  renderChapter(false);
 });
 
 CUR.astro = { name: "Astrology", short: "Astrology", glyph: "☉",
@@ -10461,7 +10493,7 @@ const GLOSS = [
 ];
 const GL_MAP = new Map(); GLOSS.forEach((e, i) => e[0].forEach(w => { GL_MAP.set(w, i); if (/^[a-z]/.test(w)) GL_MAP.set(w[0].toUpperCase() + w.slice(1), i); }));
 const GL_RE = new RegExp("(?<![\\w’'-])(" + [...GL_MAP.keys()].sort((a, b) => b.length - a.length).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")(?![\\w’-])", "g");
-const GL_SKIP = ".ltask-ta,.bdg,.book,.librow,.lmatrix,.upstream,svg,button,a,script,style,input,textarea,select,summary,h1,h2,h3,h4,.term,.label,.mono,.glyph,.g,.hw-tag,.tabs,.secpick,.toc,#chips,.pill,.chip,.heb-ico,.abu-stage,.xc-name,#gloss-pop,.exq,#lexam-form,.check";
+const GL_SKIP = ".ltask-ta,.bdg,.book,.bmain,.bfull,.librow,.librm,.librf,.lmatrix,.upstream,svg,button,a,script,style,input,textarea,select,summary,h1,h2,h3,h4,.term,.label,.mono,.glyph,.g,.hw-tag,.tabs,.secpick,.toc,#chips,.pill,.chip,.heb-ico,.abu-stage,.xc-name,#gloss-pop,.exq,#lexam-form,.check";
 const GL_SCOPE = ".why,.tile,.box,.reader,.howwhy,.surface,.chapter,.stack-s,li";
 function glossify(root) {
   if (!root || !root.querySelectorAll) return;
@@ -11312,6 +11344,232 @@ const LEGBOOK = {
   "xth|2": ["boethius", "anselm", "aquinasST"], "xth|3": ["luther1520", "mcgrath2012", "ware2015", "ratzinger1968"]
 };
 
+/* ---- v4: reading the whole work ----
+   The scope in a level's reading list is the MINIMUM for that level, never a limit. FULLREAD gives, for a work
+   whose assignment is a selection, what reading it entire means, and whether the school actively encourages it
+   (second element 1). NOFULL marks works where "the whole work" is meaningless: reference books, documents whose
+   assignment is already a complete block, staged textbooks and works split across several levels. */
+const NOFULL = { aquinasST: 1, ccc: 1, lumen: 1, deiverbum: 1, jddj: 1, creeds: 1, weller1952: 1, trent: 1,
+  wheelock: 1, pratico2019: 1, mounce: 1, hansenquinn: 1, collins1985: 1, perez1997: 1, greenspahn2003: 1, barasher2013: 1, sandberg: 1, jannach: 1,
+  casaubon1659: 1, knorr1677: 1, schmidtbiggemann: 1, nockfest: 1, plotinusLoeb: 1, morignyprol2001: 1, josten1964: 1, fangerwatson2015: 1, veronese2007: 1, hedegard2002: 1 };
+const FULLREAD = {
+  /* Scripture and Christianity */
+  noab: ["each book named entire, not only the chapters selected", 0],
+  jsb2014: ["each book named entire, not only the chapters selected", 0],
+  ehrman2023: ["the whole textbook", 0],
+  anselm: ["the whole volume: the Proslogion, the Monologion and Why God Became Man", 1],
+  boethius: ["the whole Consolation, all five books: it is short and its argument is one", 1],
+  augdoctrina: ["all four books of On Christian Teaching", 0],
+  augcity: ["the whole City of God", 0],
+  luther1520: ["the whole treatise", 0],
+  calvin: ["the whole of Book III", 0],
+  ratzinger1968: ["the whole book", 0],
+  ware2015: ["the whole book, history and faith together", 0],
+  schmemann1963: ["the whole book", 0],
+  irenaeus: ["the whole of Books I and III", 0],
+  dionysius: ["the whole volume: the Celestial Hierarchy, the Ecclesiastical Hierarchy, the Divine Names, the Mystical Theology and the Letters", 1],
+  keck1998: ["the whole book", 0],
+  chadwick1967: ["the whole book", 0],
+  mcgrath2012: ["the whole book", 0],
+  clark1997: ["the whole of Thinking with Demons", 0],
+  gerson1998: ["the whole volume of Gerson's early works", 0],
+  caciola2003: ["the whole book", 0],
+  /* Christian mysticism */
+  mcginn2006: ["the whole anthology, Parts I to IV", 1],
+  louth2007: ["the whole book", 0],
+  origengreer: ["the whole volume: the Exhortation to Martyrdom, On Prayer, First Principles IV, the Song of Songs prologue and the homily on Numbers", 1],
+  confessions: ["the whole Confessions, all thirteen books: Augustine wrote one book, and the last three turn the story into a reading of Genesis", 1],
+  evagrius: ["the whole volume, with Bamberger's introduction", 0],
+  cassian: ["all twenty-four Conferences", 0],
+  philokalia: ["the whole of volume 1", 0],
+  palamas: ["all the Triads in the volume", 1],
+  maximus: ["the whole volume of selected writings", 0],
+  bernardsong: ["the whole series of eighty-six sermons on the Song of Songs", 0],
+  richardsv: ["the whole Mystical Ark, all five books", 1],
+  bonaventure: ["the whole volume: the Soul's Journey, the Tree of Life and the Life of St Francis", 1],
+  eckhart: ["the whole volume: all the sermons, the treatises and the Defense", 1],
+  hadewijch: ["the whole of the Complete Works", 0],
+  ruusbroec: ["the whole volume", 0],
+  julian: ["both texts, the short and the long, read in that order", 1],
+  kempis: ["all four books of the Imitation", 1],
+  catherine: ["the whole Dialogue", 0],
+  johncross: ["the Ascent of Mount Carmel together with the Dark Night: they are one unfinished treatise, and the Ascent explains what the Night assumes", 1],
+  teresa: ["all seven dwelling places", 0],
+  merton1961: ["the whole book", 0],
+  james1902: ["the whole of the Varieties", 0],
+  /* Judaism and Kabbalah */
+  enoch2012: ["the whole of 1 Enoch, all five books", 0],
+  vermes2011: ["the whole collection", 0],
+  steinsaltz1976: ["the whole book", 0],
+  holtz1984: ["the whole of Back to the Sources", 0],
+  maimonides: ["the whole Guide, all three parts", 0],
+  halevi: ["the whole Kuzari", 0],
+  kaplan1990: ["the whole book: all four versions of the text with Kaplan's commentary throughout", 1],
+  davila2013: ["the whole collection of Hekhalot texts", 0],
+  schafer1992: ["the whole book", 0],
+  bahir1979: ["the whole Bahir with Kaplan's commentary", 0],
+  dan2006: ["the whole book", 0],
+  scholem1941: ["all nine lectures of Major Trends", 1],
+  idel1988: ["the whole of Kabbalah: New Perspectives", 0],
+  matt2004: ["the whole of Pritzker volume 1, with Matt's notes", 1],
+  green2004: ["the whole Guide to the Zohar", 0],
+  tishby1989: ["the whole Wisdom of the Zohar", 0],
+  gikatilla1994: ["all ten gates, from Malkhut up to Keter: the book is one ascent, and reading only some gates breaks it", 1],
+  kaplan1982: ["the whole of Meditation and Kabbalah", 0],
+  idel1988b: ["the whole book", 0],
+  robinson1994: ["the whole of Or Ne'erav", 0],
+  jacobs1960: ["the whole of The Palm Tree of Deborah", 0],
+  fine1984: ["the whole anthology", 0],
+  vital1999: ["the whole of The Palace of Adam Kadmon", 1],
+  fine2003: ["the whole of Physician of the Soul", 0],
+  green1977: ["the whole of Your Word Is Fire", 0],
+  biale2018: ["the whole history", 0],
+  scholem1965: ["the whole of On the Kabbalah and Its Symbolism", 0],
+  /* Christian Cabala */
+  farmer1998: ["all nine hundred theses with Farmer's commentary", 0],
+  picooration: ["the whole Oration with the commentary", 0],
+  wirszubski1989: ["the whole book", 0],
+  reuchlin1983: ["all three books of De arte cabalistica", 1],
+  agrippa1993: ["all three books of the Occult Philosophy", 0],
+  coudert1999: ["the whole book", 0],
+  dan1997: ["the whole collection of essays", 0],
+  /* Platonism, theurgy, Hermetism */
+  plato: ["the dialogues entire: the whole Republic and the whole Timaeus, not only the books selected", 1],
+  kahn2001: ["the whole book", 0],
+  aristotle: ["the whole of each treatise named", 0],
+  longsedley: ["the whole of volume 1", 0],
+  plotinus: ["the whole Enneads", 0],
+  omeara1993: ["the whole introduction", 0],
+  dillon1996: ["the whole of The Middle Platonists", 0],
+  iamblichus2003: ["the whole of De mysteriis, all ten books: it is one sustained reply to Porphyry, and the later books answer objections the earlier ones raise", 1],
+  majercik1989: ["the fragments with Majercik's commentary", 0],
+  proclus1963: ["all two hundred and eleven propositions, with Dodds's commentary", 1],
+  shaw1995: ["the whole of Theurgy and the Soul", 0],
+  copenhaver1992: ["all seventeen treatises of the Corpus Hermeticum and the whole Asclepius, with Copenhaver's notes: about ninety pages of text, and the natural way to meet Hermes", 1],
+  fowden1986: ["the whole of The Egyptian Hermes", 0],
+  meyer2007: ["the whole Nag Hammadi library", 0],
+  hanegraaff2022: ["the whole book", 0],
+  ebeling2007: ["the whole Secret History", 0],
+  litwa2018: ["the whole of Hermetica II", 0],
+  /* Astrology */
+  ptolemy: ["all four books of the Tetrabiblos", 1],
+  valens: ["the whole Anthology, all nine books", 0],
+  dorotheus2017: ["all five books of the Carmen", 0],
+  koch1995: ["the whole book", 0],
+  rochberg2004: ["the whole of The Heavenly Writing", 0],
+  campion2008: ["the whole of volume 1", 0],
+  campion2009: ["the whole of volume 2", 0],
+  abumashar1994: ["the whole Abbreviation", 0],
+  sela2017: ["the whole of The Beginning of Wisdom", 1],
+  bonatti: ["the whole Book of Astronomy", 0],
+  ficinolife: ["all three books of De vita: on a healthy life, on a long life and on life from the heavens; the third assumes the first two", 1],
+  grafton1999: ["the whole of Cardano's Cosmos", 0],
+  lilly1647: ["Books I and II entire, and Book III on nativities if you go on", 1],
+  curry1989: ["the whole book", 0],
+  rudhyar1936: ["the whole of The Astrology of Personality", 1],
+  cornelius1994: ["the whole of The Moment of Astrology", 1],
+  brennan2017: ["the whole of Hellenistic Astrology", 0],
+  /* Tarot */
+  farley2009: ["the whole Cultural History of Tarot", 1],
+  ddd1996: ["the whole of A Wicked Pack of Cards", 0],
+  dd2002: ["the whole of A History of the Occult Tarot", 0],
+  gebelin1781: ["the tarot essay and the Comte de Mellet's essay together", 0],
+  levi1856: ["the whole of Transcendental Magic: the Doctrine and the Ritual together, twenty-two chapters each", 1],
+  waite1910: ["the whole Pictorial Key, including the divinatory meanings", 0],
+  crowley1944: ["the whole Book of Thoth", 0],
+  regardie1937: ["the whole compendium", 0],
+  case1947: ["the whole book", 0],
+  tomberg: ["all twenty-two Letters: they are one course of meditation, and each letter assumes the ones before", 1],
+  greer1984: ["the whole workbook", 0],
+  /* Alchemy */
+  principe2013: ["the whole of The Secrets of Alchemy, including Principe's own laboratory reconstructions", 1],
+  jackson1978: ["the whole of On the Letter Omega with the commentary", 0],
+  grimes2018: ["the whole of Becoming Gold", 0],
+  newman1991: ["the whole Summa perfectionis with Newman's study", 0],
+  weeks2008: ["the whole volume of Paracelsus's theoretical writings", 1],
+  moran2005: ["the whole of Distilling Knowledge", 0],
+  maier1617: ["all fifty emblems with their epigrams, discourses and fugues", 1],
+  vaughan1650: ["the whole of Anthroposophia Theomagica", 0],
+  newman2018: ["the whole of Newton the Alchemist", 0],
+  jung1944: ["the whole of Psychology and Alchemy", 1],
+  atwood1850: ["the whole Suggestive Inquiry", 0],
+  jung1955: ["the whole of Mysterium Coniunctionis", 0],
+  /* Magic */
+  betz1986: ["the whole collection of papyri", 0],
+  gager1992: ["the whole collection of tablets", 0],
+  morgan1983: ["the whole of Sepher ha-Razim", 0],
+  duling1983: ["the whole Testament", 0],
+  kieckhefer1989: ["the whole of Magic in the Middle Ages", 1],
+  attrell2019: ["all four books of the Picatrix", 1],
+  saif2015: ["the whole book", 0],
+  castle2023: ["the whole Ars notoria with all its notae and the apparatus", 0],
+  fanger2015: ["the whole of Rewriting Magic", 0],
+  fanger1998: ["the whole collection of essays", 0],
+  fanger2012: ["the whole collection of essays", 0],
+  peterson2016: ["the whole Sworn Book", 0],
+  kieckhefer1997: ["the whole of Forbidden Rites, the study and the edited text together", 1],
+  klaassen2013: ["the whole of The Transformations of Magic", 0],
+  peterson2009: ["the whole volume: the Fourth Book and the Heptameron together", 0],
+  mathers1889: ["the whole Key of Solomon, both books", 1],
+  peterson2001: ["the whole Lemegeton as Peterson gives it", 0],
+  abramelin2006: ["all four books, including the word squares", 1],
+  davies2009: ["the whole of Grimoires: A History of Magic Books", 0],
+  /* Dee */
+  harkness1999: ["the whole of John Dee's Conversations with Angels", 1],
+  heptarchia: ["the whole Heptarchia Mystica", 0],
+  asprem2012: ["the whole of Arguing with Angels", 0],
+  crowley1911: ["all thirty Aethyrs in order", 1],
+  szonyi2004: ["the whole book", 0],
+  /* Rosicrucians, Böhme */
+  godwin1991: ["the whole Chemical Wedding with Godwin's commentary", 0],
+  mcintosh1997: ["the whole of The Rosicrucians", 0],
+  godwin1979: ["the whole of Robert Fludd", 0],
+  huffman1988: ["the whole book", 0],
+  boehme2013: ["the whole of Aurora: it was never finished, and its unfinished state is part of what it shows", 0],
+  boehme1651: ["all sixteen chapters of the Signature of All Things: the doctrine of signatures only becomes clear in the later chapters", 1],
+  boehme1978: ["the whole of The Way to Christ, all its treatises", 0],
+  weeks1991: ["the whole intellectual biography", 0],
+  swedenborg1758: ["the whole of Heaven and Hell", 1],
+  mcintosh1992: ["the whole book", 0],
+  /* Martinism */
+  stmartin_errors: ["the whole of Of Errors and Truth", 1],
+  stmartin_desire: ["all the chants of The Man of Desire: they are short, and the book is meant to be prayed through", 1],
+  stmartin_ministry: ["the whole Ministry: man, nature and the Word", 1],
+  stmartin_corresp: ["the whole correspondence with Kirchberger", 1],
+  joly: ["the whole of A Mystic of Lyon", 0],
+  leforestier1970: ["the whole work (in French)", 0],
+  papus1899: ["the whole pamphlet", 0],
+  waite1922: ["the whole book", 0],
+  /* Modern */
+  gc_blavatsky2004: ["the whole anthology with Goodrick-Clarke's introduction", 1],
+  blavatsky1877: ["the whole of Isis Unveiled", 0],
+  howe1972: ["the whole documentary history", 0],
+  owen2004: ["the whole book", 0],
+  pasi2014: ["the whole book", 0],
+  crowley1904: ["the whole text with Crowley's short comment", 0],
+  hutton1999: ["the whole of The Triumph of the Moon", 0],
+  bogdan2007: ["the whole book", 0],
+  stevenson1988: ["the whole of The Origins of Freemasonry", 0],
+  jacob1991: ["the whole book", 0],
+  godwin1994: ["the whole of The Theosophical Enlightenment", 0],
+  mcintosh1972: ["the whole book", 0],
+  /* Orientation and context */
+  hanegraaff2013: ["the whole guide", 0],
+  hammer2001: ["the whole of Claiming Knowledge", 0],
+  principe2011: ["the whole Very Short Introduction", 0],
+  vanbladel2009: ["the whole of The Arabic Hermes", 0],
+  gutas1998: ["the whole book", 0],
+  lindberg2007: ["the whole of The Beginnings of Western Science", 0],
+  kugel2007: ["the whole of How to Read the Bible", 0],
+  collins2016: ["the whole of The Apocalyptic Imagination", 0],
+  sirat1985: ["the whole history", 0],
+  /* works this school reads across several levels: the whole can be taken in one go */
+  pasqually2023: ["the whole Treatise on the Reintegration of Beings, straight through: the school reads it over three levels, but it is one unfinished book and its argument runs continuously", 1],
+  peterson2003: ["all five Books of Mystery, in order: the school reads them over three levels, but they are one record", 1],
+  rosytrilogy2016: ["all three founding documents together: the Fama, the Confessio and the Chemical Wedding", 1],
+  dover1980: ["the whole Symposium in Greek, with Dover's commentary", 0]
+};
+
 /* =================== LEARN v4: the plan ===================
    A school of spiritual traditions, not a research degree. Each course follows its own tradition's
    development; primary sources lead, scholarship explains. A level is
@@ -11547,7 +11805,7 @@ C("xmys", { name: "Christian Mysticism", short: "Christian Mysticism", glyph: "�
   { id: "2", t: "Origen, Gregory of Nyssa and Augustine", era: ["late"], tier: "intermediate", hrs: 35, carry: ["xmys.2"],
     desc: "Origen's reading of the Song of Songs and the three books of Solomon, Gregory of Nyssa's endless ascent into the darkness where God is, and Augustine's vision at Ostia.",
     u: ["xmys|Philo, Clement and Origen", "xmys|Origen's three books", "xmys|Gregory of Nyssa", "xmys|Augustine at Ostia"],
-    r: [["origengreer", "CORE", "the Prologue to the Commentary on the Song of Songs"], ["nyssamoses", "CORE", "Book II, the contemplation"], ["confessions", "REQUIRED", "Books VII, IX and X"]],
+    r: [["origengreer", "CORE", "the Prologue to the Commentary on the Song of Songs"], ["nyssamoses", "CORE", "both books entire: the history in Book I, then the contemplation in Book II. It is short"], ["confessions", "REQUIRED", "Books VII, IX and X"]],
     req: [["xmys.1", ""]], tk: "passage", task: "Interpret Gregory of Nyssa's Life of Moses II.162–169 (Moses entering the darkness). In about 500 words, explain what 'darkness' means here, what epektasis (endless stretching forward) is, and how this differs from Origen's three stages." },
   { id: "3", t: "The Desert and Evagrius", era: ["late"], tier: "intermediate", hrs: 30, carry: ["xmys.3"],
     desc: "Antony and the desert fathers and mothers, Evagrius's eight thoughts and pure prayer, Cassian's bringing of the desert West, and John Climacus's Ladder.",
@@ -11557,7 +11815,7 @@ C("xmys", { name: "Christian Mysticism", short: "Christian Mysticism", glyph: "�
   { id: "4", t: "Dionysius and Maximus: Unknowing and Deification", era: ["late"], tier: "intermediate", hrs: 30, carry: [],
     desc: "Pseudo-Dionysius on the divine names and the ray of divine darkness, Maximus the Confessor on deification, and the theology of the icon.",
     u: ["xmys|Pseudo-Dionysius", "xmys|Maximus and theosis", "xmys|Icons"],
-    r: [["dionysius", "CORE", "The Mystical Theology, complete, and The Divine Names, chapters 1–4"], ["maximus", "REQUIRED", "the Chapters on Knowledge"], ["lossky1944", "RECOMMENDED", "an Orthodox synthesis of this tradition"]],
+    r: [["dionysius", "CORE", "The Mystical Theology and The Divine Names, both complete"], ["maximus", "REQUIRED", "the Chapters on Knowledge"], ["lossky1944", "RECOMMENDED", "an Orthodox synthesis of this tradition"]],
     req: [["xmys.2", ""]], tk: "passage", task: "Interpret The Mystical Theology, chapter 1. In about 500 words, explain the movement from affirmation to negation to what lies beyond both, using Dionysius's own terms." },
   { id: "5", t: "The Hesychasts and the Jesus Prayer", era: ["hmed", "lmed", "c19"], tier: "intermediate", hrs: 30, carry: [],
     desc: "The Philokalia, Symeon the New Theologian, Gregory Palamas and the uncreated light, the Jesus Prayer, and the Russian pilgrim who carried it.",
@@ -11567,7 +11825,7 @@ C("xmys", { name: "Christian Mysticism", short: "Christian Mysticism", glyph: "�
   { id: "6", t: "The Benedictine and Cistercian Way", era: ["emed", "hmed"], tier: "intermediate", hrs: 30, carry: [],
     desc: "The Rule of Benedict and the Divine Office, Bernard of Clairvaux on the degrees of love and the Song of Songs, and Hildegard of Bingen's visions.",
     u: ["xmys|Benedict and the Office", "xmys|Bernard of Clairvaux", "xmys|Hildegard of Bingen"],
-    r: [["benedict", "CORE", "the Prologue and chapters 4–20 and 48–49"], ["bernardlove", "CORE", "the whole treatise"], ["bernardsong", "RECOMMENDED", "Sermons 1–8 and 74"], ["mcginn1994", "OPTIONAL", ""]],
+    r: [["benedict", "CORE", "the whole Rule: it is short, and the shape of the day it lays out is itself the teaching"], ["bernardlove", "CORE", "the whole treatise"], ["bernardsong", "RECOMMENDED", "Sermons 1–8 and 74"], ["mcginn1994", "OPTIONAL", ""]],
     req: [["xmys.1", ""]], tk: "explain", task: "In about 400 words, explain Bernard's four degrees of love in On Loving God, and how the Rule of Benedict's ordering of prayer and work forms the life in which they grow." },
   { id: "7", t: "The Victorines, Francis and Bonaventure", era: ["hmed"], tier: "intermediate", hrs: 30, carry: ["xmys.4"],
     desc: "Richard of St Victor's ark of contemplation, Francis of Assisi, and Bonaventure's journey of the mind into God.",
@@ -11587,7 +11845,7 @@ C("xmys", { name: "Christian Mysticism", short: "Christian Mysticism", glyph: "�
   { id: "10", t: "Ignatius of Loyola and the Spiritual Exercises", era: ["ren"], tier: "intermediate", hrs: 30, carry: [], xq: "v4.xmys.10",
     desc: "The Spiritual Exercises: the Principle and Foundation, the four weeks, the application of the senses, and the rules for the discernment of spirits.",
     u: ["xmys|Ignatius and the Exercises"],
-    r: [["ignatius", "CORE", "the Annotations, the Principle and Foundation, the First and Second Weeks, and the Rules for Discernment"]],
+    r: [["ignatius", "CORE", "the whole book: the Annotations, the four Weeks, the Contemplation to Attain Love and the Rules for Discernment"]],
     req: [["xmys.1", ""]], tk: "practice", task: "Reconstruct an Ignatian contemplation as the Exercises describe it: the preparatory prayer, the preludes, the composition of place, the points, the colloquy. Then explain in Ignatius's terms the difference between consolation and desolation. About 500 words." },
   { id: "11", t: "Teresa of Ávila and John of the Cross", era: ["ren"], tier: "advanced", hrs: 35, carry: ["xmys.6"],
     desc: "Teresa's seven mansions of the interior castle, and John of the Cross's dark nights of sense and spirit.",
@@ -11743,7 +12001,7 @@ C("herm", { name: "Hermetism", short: "Hermetism", glyph: "☤", group: "Ancient
   { id: "2", t: "Rebirth, the Asclepius and the Eighth and Ninth", era: ["late"], tier: "intermediate", hrs: 35, carry: ["herm.2", "herm.3"],
     desc: "Rebirth in CH XIII, the Asclepius and its ensouled statues, the Discourse on the Eighth and the Ninth from Nag Hammadi, the question of Hermetic communities, and why Hermetism is not Gnosticism.",
     u: ["herm|Rebirth: Corpus Hermeticum XIII", "herm|The Asclepius and the statues", "herm|The Discourse on the Eighth and Ninth", "herm|Were there Hermetic communities?", "herm|Hermetism and Gnosticism"],
-    r: [["copenhaver1992", "CORE", "Corpus Hermeticum XIII and the Asclepius"], ["meyer2007", "REQUIRED", "The Discourse on the Eighth and Ninth, the Prayer of Thanksgiving and the Asclepius excerpt (NHC VI,6–8)"], ["hanegraaff2022", "RECOMMENDED", "chapters 1–3"], ["litwa2018", "OPTIONAL", ""], ["vandenkerchove2012", "SPECIALIST", ""], ["nockfest", "SPECIALIST", ""]],
+    r: [["copenhaver1992", "CORE", "Corpus Hermeticum XIII and the whole Asclepius"], ["meyer2007", "REQUIRED", "The Discourse on the Eighth and Ninth, the Prayer of Thanksgiving and the Asclepius excerpt (NHC VI,6–8)"], ["hanegraaff2022", "RECOMMENDED", "chapters 1–3"], ["litwa2018", "OPTIONAL", ""], ["vandenkerchove2012", "SPECIALIST", ""], ["nockfest", "SPECIALIST", ""]],
     req: [["herm.1", ""]], tk: "practice", task: "Reconstruct the rite of the Discourse on the Eighth and the Ninth as the text presents it: the prayer, the hymn, the silence, the vision, and the instructions for writing the book on turquoise steles. About 500 words, in the text's own terms." },
   { id: "3", t: "Hermes Reborn: Renaissance Hermeticism", era: ["ren", "c17"], tier: "advanced", hrs: 25, carry: ["herm.4"],
     desc: "Ficino's Pimander, the ancient theology of Hermes before Moses, Casaubon's redating of 1614, and how the Renaissance Hermes differs from the ancient one.",
@@ -15611,7 +15869,7 @@ start();
 
 <script>
 (function(){
-  var BUILD="20261029131211";
+  var BUILD="20261029140134";
   if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js").catch(function(){}); }
   function check(){ fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.json();}).then(function(v){ if(v && v.build && v.build!==BUILD) location.reload(); }).catch(function(){}); }
   setInterval(check, 20*60*1000);
